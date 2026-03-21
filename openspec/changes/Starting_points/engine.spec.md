@@ -96,7 +96,7 @@ For each trading day `t` in `[start_date, end_date]`:
 
 Direction: leaves → root.
 
-For each `SecurityNode` (leaf):
+For each `AssetNode` (leaf):
 - Look up `price_data.loc[t, ticker]`
 - Value is guaranteed valid by pidb_ib contract — no NaN check performed
 

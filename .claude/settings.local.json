@@ -6,7 +6,10 @@
       "Read(//c/Users/PC User/.config/gh/**)",
       "Read(//c/Users/PC User/AppData/Roaming/GitHub CLI/**)",
       "Bash(git --version)",
-      "Bash(uv sync:*)"
+      "Bash(uv sync:*)",
+      "Bash(openspec status:*)",
+      "Bash(openspec instructions:*)",
+      "Bash(uv run:*)"
     ]
   }
 }

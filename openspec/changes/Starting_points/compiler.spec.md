@@ -250,7 +250,7 @@ BaseNode
 │   ├── if_else       → holds conditions + true_branch + false_branch
 │   ├── weight        → holds method + method_params + children[]
 │   └── filter        → holds sort_by + select + children[]
-└── SecurityNode      ← asset → holds ticker
+└── AssetNode      ← asset → holds ticker
 ```
 
 `RootNode` is a `StrategyNode` wrapping the top-level `root_node` from the DSL, with `settings` attached.
@@ -260,7 +260,7 @@ BaseNode
 | Attribute | Type | Source |
 |---|---|---|
 | `settings` | `Settings` dataclass | Compiled from `settings` block |
-| `root` | `StrategyNode \| SecurityNode` | Compiled from `root_node` |
+| `root` | `StrategyNode \| AssetNode` | Compiled from `root_node` |
 
 ### `Settings` dataclass
 
