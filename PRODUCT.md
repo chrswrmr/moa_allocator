@@ -69,13 +69,13 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
 
 **Phase 2 — Algos + Metrics** `[input: algos.spec.md + metrics.spec.md]`
 
-- [open] A1 — `compute_metric()` + all 9 metric functions
+- [done] A1 — `compute_metric()` + all 9 metric functions
   > **Files:** `moa_allocations/engine/algos/metrics.py`, `moa_allocations/engine/algos/__init__.py`
   > **Scope:** Implement `compute_metric(series: np.ndarray, function: str, lookback: int) -> float` dispatcher and all 9 functions: `current_price`, `cumulative_return`, `sma_price`, `ema_price`, `sma_return`, `max_drawdown`, `rsi` (Wilder smoothing), `std_dev_price`, `std_dev_return`. All use today's close as reference (ADR-003). Returns `np.nan` when series length < minimum required. No side effects, no state. Exact implementations per `metrics.spec.md`.
   > **Out of scope:** Calling `compute_metric` from Algos (A2–A4).
   > **Depends on:** C1 (node structure context only — no hard import dependency).
 
-- [open] A2 — `BaseAlgo` + `SelectAll` + `WeightEqually`
+- [done] A2 — `BaseAlgo` + `SelectAll` + `WeightEqually`
   > **Files:** `moa_allocations/engine/algos/base.py`, `moa_allocations/engine/algos/selection.py`, `moa_allocations/engine/algos/weighting.py`
   > **Scope:** Define `BaseAlgo` with `__call__(self, target: StrategyNode) -> bool` contract. Implement `SelectAll` (writes all child ids to `target.temp['selected']`, always returns `True`) and `WeightEqually` (distributes `1/n` to each selected child, writes to `target.temp['weights']`, always returns `True`). These are the AlgoStack for all `weight/equal` nodes.
   > **Out of scope:** Any Algo that calls `compute_metric` — those are A3/A4.
