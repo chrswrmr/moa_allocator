@@ -1,0 +1,42 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+context: |
+  Domain: MoaEdge — a backtest allocator engine driven by a tree-structured DSL.
+  DSL version: 1.0.0
+
+  Blueprint reference (do not modify these files — they are the authoritative DSL spec):
+    - openspec/moa_strategy_DSL/moa_DSL_schema.json  — JSON Schema (draft-07)
+    - openspec/moa_strategy_DSL/moa_Req_to_DSL.md    — building blocks reference
+
+  Node types: settings (root, once), if_else, weight, filter, asset (leaf only)
+  Weighting methods: equal, defined, inverse_volatility
+  Condition metrics: current_price, cumulative_return, ema_price, sma_price, sma_return,
+                     max_drawdown, rsi, std_dev_price, std_dev_return
+  Time offsets: pattern ^[0-9]+[dwm]$ (e.g. "200d", "4w", "3m")
+
+  Module specs (authoritative — use as direct input when creating changes):
+    - openspec/changes/Starting_points/compiler.spec.md  — DSL parser, validator, node instantiation
+    - openspec/changes/Starting_points/engine.spec.md    — simulation loop, upward/downward pass, rebalance logic
+    - openspec/changes/Starting_points/algos.spec.md     — Algo contract, SelectAll/TopN/BottomN/IfCondition, WeightEqually/Specified/InvVol
+    - openspec/changes/Starting_points/metrics.spec.md   — compute_metric(), all 9 metric functions, NaN rules
+
+  All implementation changes must conform to these blueprints and module specs.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours

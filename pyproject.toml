@@ -1,0 +1,18 @@
+[project]
+name = "moa-allocator"
+version = "0.1.0"
+description = "Hierarchical portfolio allocation engine: compiles a strategy DSL into daily ticker weights."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "pandas-ta>=0.3.14b",
+    "jsonschema>=4.23",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]

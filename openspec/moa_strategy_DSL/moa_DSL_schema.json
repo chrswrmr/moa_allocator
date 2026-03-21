@@ -1,0 +1,298 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "title": "Moa DSL Schema",
+  "type": "object",
+  "required": [
+    "id",
+    "version-dsl",
+    "settings",
+    "root_node"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version-dsl": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "settings": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "starting_cash",
+        "start_date",
+        "end_date",
+        "rebalance_frequency"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "starting_cash": {
+          "type": "number",
+          "default": 100000
+        },
+        "start_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "end_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "slippage": {
+          "type": "number",
+          "default": 0.0005
+        },
+        "fees": {
+          "type": "number",
+          "default": 0.0
+        },
+        "rebalance_frequency": {
+          "enum": [
+            "daily",
+            "weekly",
+            "monthly"
+          ]
+        },
+        "rebalance_threshold": {
+          "type": "number"
+        }
+      }
+    },
+    "root_node": {
+      "$ref": "#/definitions/node"
+    }
+  },
+  "definitions": {
+    "time_offset": {
+      "type": "string",
+      "pattern": "^[0-9]+[dwm]$"
+    },
+    "node": {
+      "type": "object",
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "$ref": "#/definitions/ifElseNode"
+        },
+        {
+          "$ref": "#/definitions/weightNode"
+        },
+        {
+          "$ref": "#/definitions/filterNode"
+        },
+        {
+          "$ref": "#/definitions/assetNode"
+        }
+      ]
+    },
+    "ifElseNode": {
+      "properties": {
+        "type": {
+          "const": "if_else"
+        },
+        "logic_mode": {
+          "enum": [
+            "all",
+            "any"
+          ]
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/condition"
+          }
+        },
+        "true_branch": {
+          "$ref": "#/definitions/node"
+        },
+        "false_branch": {
+          "$ref": "#/definitions/node"
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "required": [
+        "lhs",
+        "comparator",
+        "rhs"
+      ],
+      "properties": {
+        "lhs": {
+          "$ref": "#/definitions/conditionMetric"
+        },
+        "comparator": {
+          "enum": [
+            "greater_than",
+            "less_than"
+          ]
+        },
+        "rhs": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "$ref": "#/definitions/conditionMetric"
+            }
+          ]
+        },
+        "duration": {
+          "$ref": "#/definitions/time_offset",
+          "default": "1d"
+        }
+      }
+    },
+    "conditionMetric": {
+      "type": "object",
+      "required": [
+        "asset",
+        "function"
+      ],
+      "properties": {
+        "asset": {
+          "type": "string"
+        },
+        "function": {
+          "enum": [
+            "current_price",
+            "cumulative_return",
+            "ema_price",
+            "sma_price",
+            "sma_return",
+            "max_drawdown",
+            "rsi",
+            "std_dev_price",
+            "std_dev_return"
+          ]
+        },
+        "lookback": {
+          "$ref": "#/definitions/time_offset"
+        }
+      }
+    },
+    "sortMetric": {
+      "type": "object",
+      "required": [
+        "function"
+      ],
+      "properties": {
+        "function": {
+          "enum": [
+            "current_price",
+            "cumulative_return",
+            "ema_price",
+            "sma_price",
+            "sma_return",
+            "max_drawdown",
+            "rsi",
+            "std_dev_price",
+            "std_dev_return"
+          ]
+        },
+        "lookback": {
+          "$ref": "#/definitions/time_offset"
+        }
+      }
+    },
+    "weightNode": {
+      "properties": {
+        "type": {
+          "const": "weight"
+        },
+        "method": {
+          "enum": [
+            "equal",
+            "defined",
+            "inverse_volatility"
+          ]
+        },
+        "method_params": {
+          "type": "object",
+          "properties": {
+            "lookback": {
+              "$ref": "#/definitions/time_offset"
+            },
+            "custom_weights": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/node"
+          }
+        }
+      }
+    },
+    "filterNode": {
+      "properties": {
+        "type": {
+          "const": "filter"
+        },
+        "sort_by": {
+          "$ref": "#/definitions/sortMetric"
+        },
+        "select": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "enum": [
+                "top",
+                "bottom"
+              ]
+            },
+            "count": {
+              "type": "integer"
+            }
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/node"
+          }
+        }
+      }
+    },
+    "assetNode": {
+      "properties": {
+        "type": {
+          "const": "asset"
+        },
+        "ticker": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
