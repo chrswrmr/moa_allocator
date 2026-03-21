@@ -36,13 +36,14 @@ def _write_json(tmp_path, data):
 
 
 # ---------------------------------------------------------------------------
-# 6.1 Valid document reaches NotImplementedError (steps 1-2 pass)
+# 6.1 Valid document compiles successfully (steps 1-5 pass)
 # ---------------------------------------------------------------------------
 
-def test_valid_doc_reaches_not_implemented(tmp_path):
+def test_valid_doc_compiles_successfully(tmp_path):
+    from moa_allocations.engine.strategy import RootNode
     path = _write_json(tmp_path, VALID_DOC)
-    with pytest.raises(NotImplementedError):
-        compile_strategy(path)
+    result = compile_strategy(path)
+    assert isinstance(result, RootNode)
 
 
 # ---------------------------------------------------------------------------

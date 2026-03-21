@@ -16,22 +16,15 @@ def _write(tmp_path, data):
     return str(p)
 
 
-def _compile(tmp_path, doc):
-    """Run compile_strategy; return the raised exception (DSLValidationError or NotImplementedError)."""
-    with pytest.raises((DSLValidationError, NotImplementedError)) as exc_info:
-        compile_strategy(_write(tmp_path, doc))
-    return exc_info.value
-
-
 def _assert_passes(tmp_path, doc):
-    """Assert the doc passes semantic validation (hits the NotImplementedError stub, not DSLValidationError)."""
-    exc = _compile(tmp_path, doc)
-    assert isinstance(exc, NotImplementedError), f"Expected NotImplementedError but got DSLValidationError: {exc}"
+    """Assert the doc passes all validation and compiles successfully."""
+    compile_strategy(_write(tmp_path, doc))
 
 
 def _assert_fails(tmp_path, doc, *, node_id=None, fragment=None):
-    exc = _compile(tmp_path, doc)
-    assert isinstance(exc, DSLValidationError), f"Expected DSLValidationError but got {type(exc).__name__}: {exc}"
+    with pytest.raises(DSLValidationError) as exc_info:
+        compile_strategy(_write(tmp_path, doc))
+    exc = exc_info.value
     if node_id is not None:
         assert exc.node_id == node_id, f"Expected node_id={node_id!r}, got {exc.node_id!r}"
     if fragment is not None:

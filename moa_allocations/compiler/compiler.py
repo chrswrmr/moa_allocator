@@ -1,14 +1,121 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from importlib import resources
 
 import jsonschema
 
+from moa_allocations.engine.node import AssetNode, FilterNode, IfElseNode, StrategyNode, WeightNode
+from moa_allocations.engine.strategy import RootNode, Settings
 from moa_allocations.exceptions import DSLValidationError
 
 _DSL_VERSION = "1.0.0"
+
+_LOOKBACK_MULTIPLIERS = {"d": 1, "w": 5, "m": 21}
+_LOOKBACK_RE = re.compile(r"^(\d+)([dwm])$")
+
+
+def _convert_lookback(time_offset: str) -> int:
+    """Convert a time_offset string (e.g. '200d', '4w', '3m') to integer trading days."""
+    m = _LOOKBACK_RE.match(time_offset)
+    if not m:
+        raise DSLValidationError(
+            node_id="root",
+            node_name="",
+            message=f"invalid time_offset format '{time_offset}'; expected pattern like '200d', '4w', '3m'",
+        )
+    amount, unit = int(m.group(1)), m.group(2)
+    return amount * _LOOKBACK_MULTIPLIERS[unit]
+
+
+def _build_settings(raw: dict) -> Settings:
+    """Construct a Settings dataclass from the validated settings dict."""
+    return Settings(
+        id=raw["id"],
+        name=raw["name"],
+        starting_cash=float(raw["starting_cash"]),
+        start_date=date.fromisoformat(raw["start_date"]),
+        end_date=date.fromisoformat(raw["end_date"]),
+        slippage=float(raw.get("slippage", 0.0005)),
+        fees=float(raw.get("fees", 0.0)),
+        rebalance_frequency=raw["rebalance_frequency"],
+        rebalance_threshold=raw.get("rebalance_threshold"),
+    )
+
+
+def _build_metric(metric: dict) -> dict:
+    """Return a copy of a conditionMetric or sortMetric with lookback converted to int."""
+    result = dict(metric)
+    if "lookback" in result:
+        result["lookback"] = _convert_lookback(result["lookback"])
+    return result
+
+
+def _build_condition(cond: dict) -> dict:
+    """Return a copy of a condition dict with all time_offsets converted to int."""
+    result = dict(cond)
+    result["lhs"] = _build_metric(result["lhs"])
+    if isinstance(result.get("rhs"), dict):
+        result["rhs"] = _build_metric(result["rhs"])
+    duration_str = result.get("duration", "1d")
+    result["duration"] = _convert_lookback(duration_str)
+    return result
+
+
+def _build_node(raw: dict) -> StrategyNode | AssetNode:
+    """Recursively instantiate a node dict into the C1 node class hierarchy."""
+    node_type = raw.get("type")
+    node_id = raw["id"]
+    node_name = raw.get("name")
+
+    if node_type == "asset":
+        return AssetNode(id=node_id, ticker=raw["ticker"], name=node_name)
+
+    if node_type == "weight":
+        children = [_build_node(c) for c in raw.get("children", [])]
+        method_params = dict(raw.get("method_params", {}))
+        if "lookback" in method_params:
+            method_params["lookback"] = _convert_lookback(method_params["lookback"])
+        return WeightNode(
+            id=node_id,
+            method=raw["method"],
+            method_params=method_params,
+            children=children,
+            name=node_name,
+        )
+
+    if node_type == "filter":
+        children = [_build_node(c) for c in raw.get("children", [])]
+        sort_by = _build_metric(raw["sort_by"])
+        return FilterNode(
+            id=node_id,
+            sort_by=sort_by,
+            select=raw["select"],
+            children=children,
+            name=node_name,
+        )
+
+    if node_type == "if_else":
+        conditions = [_build_condition(c) for c in raw.get("conditions", [])]
+        true_branch = _build_node(raw["true_branch"])
+        false_branch = _build_node(raw["false_branch"])
+        return IfElseNode(
+            id=node_id,
+            logic_mode=raw["logic_mode"],
+            conditions=conditions,
+            true_branch=true_branch,
+            false_branch=false_branch,
+            name=node_name,
+        )
+
+    raise DSLValidationError(
+        node_id=node_id,
+        node_name=node_name or "",
+        message=f"unknown node type '{node_type}'",
+    )
+
 
 _LOOKBACK_REQUIRED = {
     "cumulative_return",
@@ -145,7 +252,7 @@ def _validate_semantics(doc: dict) -> None:
         )
 
 
-def compile_strategy(path: str):
+def compile_strategy(path: str) -> RootNode:
     # Step 1: load and JSON-parse
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -173,13 +280,14 @@ def compile_strategy(path: str):
         raise DSLValidationError(node_id="root", node_name="settings", message=e.message)
 
     # Step 2c: extract top-level fields
-    strategy_id = doc["id"]
     version_dsl = doc["version-dsl"]
 
     # Step 3: semantic validation
     _validate_semantics(doc)
 
-    raise NotImplementedError(
-        f"compile_strategy: steps 4-5 (node instantiation) not yet implemented "
-        f"[id={strategy_id}, version-dsl={version_dsl}]"
-    )
+    # Step 4: recursively instantiate the node tree
+    root = _build_node(doc["root_node"])
+
+    # Step 5: assemble and return the RootNode
+    settings = _build_settings(doc["settings"])
+    return RootNode(settings=settings, root=root, dsl_version=version_dsl)
