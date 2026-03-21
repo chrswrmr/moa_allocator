@@ -81,7 +81,7 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
   > **Out of scope:** Any Algo that calls `compute_metric` — those are A3/A4.
   > **Depends on:** C1, A1.
 
-- [open] A3 — `SelectTopN` / `SelectBottomN` + `WeightInvVol`
+- [done] A3 — `SelectTopN` / `SelectBottomN` + `WeightInvVol`
   > **Files:** `moa_allocations/engine/algos/selection.py` (extend), `moa_allocations/engine/algos/weighting.py` (extend)
   > **Scope:** Implement `SelectTopN(n, metric, lookback)` and `SelectBottomN(n, metric, lookback)` — rank children by `compute_metric()` over their NAV/price series, select top/bottom N, write to `target.temp['selected']`. Implement `WeightInvVol(lookback)` — compute `std_dev_return` per selected child, weight inversely, normalise; exclude zero/NaN vol children; return `False` if all are excluded. Used by `filter` and `weight/inverse_volatility` nodes respectively.
   > **Out of scope:** Condition evaluation (A4).

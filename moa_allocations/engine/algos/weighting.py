@@ -15,6 +15,17 @@ class WeightEqually(BaseAlgo):
         return True
 
 
+class WeightSpecified(BaseAlgo):
+    """Assign pre-validated custom weights directly to target.temp['weights']."""
+
+    def __init__(self, custom_weights: dict[str, float]) -> None:
+        self.custom_weights = custom_weights
+
+    def __call__(self, target: StrategyNode) -> bool:
+        target.temp["weights"] = dict(self.custom_weights)
+        return True
+
+
 class WeightInvVol(BaseAlgo):
     """Weight selected children inversely proportional to return volatility."""
 
