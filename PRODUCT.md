@@ -43,25 +43,25 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
 
 **Phase 1 — Compiler** `[input: compiler.spec.md]`
 
-- [open] C1 — Node class hierarchy (`BaseNode`, `StrategyNode`, `AssetNode`, `RootNode`, `Settings`)
+- [done] C1 — Node class hierarchy (`BaseNode`, `StrategyNode`, `SecurityNode`, `RootNode`, `Settings`)
   > **Files:** `moa_allocations/engine/node.py`, `moa_allocations/engine/strategy.py`, `moa_allocations/exceptions.py`
-  > **Scope:** Create `BaseNode`, `StrategyNode` (holds `children`, `temp`, `perm`, `algo_stack`), `AssetNode` (holds `ticker`), `RootNode` (holds `settings` + `root`), and `Settings` dataclass — all attributes per the Output Node Class Hierarchy section of `compiler.spec.md`. Also define `DSLValidationError(node_id, node_name, message)` and `PriceDataError(message)` in `exceptions.py`.
+  > **Scope:** Create `BaseNode`, `StrategyNode` (holds `children`, `temp`, `perm`, `algo_stack`), `SecurityNode` (holds `ticker`), `RootNode` (holds `settings` + `root`), and `Settings` dataclass — all attributes per the Output Node Class Hierarchy section of `compiler.spec.md`. Also define `DSLValidationError(node_id, node_name, message)` and `PriceDataError(message)` in `exceptions.py`.
   > **Out of scope:** No parsing, no validation, no AlgoStack attachment — pure data structure only.
   > **Depends on:** nothing — this is the foundation for all other changes.
 
-- [open] C2 — JSON Schema validation + top-level structure parsing
+- [done] C2 — JSON Schema validation + top-level structure parsing
   > **Files:** `moa_allocations/compiler/compiler.py`, `moa_allocations/compiler/schema/moa_DSL_schema.json`
   > **Scope:** Implement the first two steps of `compile_strategy(path)`: load JSON from `path`, validate against `moa_DSL_schema.json` using `jsonschema` (Draft-07), parse top-level fields (`id`, `version-dsl`, `settings`, `root_node`). Raise `DSLValidationError(node_id="root", node_name="settings", message=...)` on any schema violation or wrong `version-dsl`. Copy `moa_DSL_schema.json` from `openspec/moa_strategy_DSL/` into `compiler/schema/`.
   > **Out of scope:** Semantic validation (C3), recursive node instantiation (C4).
   > **Depends on:** C1 (`DSLValidationError`).
 
-- [open] C3 — Semantic validation
+- [done] C3 — Semantic validation
   > **Files:** `moa_allocations/compiler/compiler.py` (extend)
   > **Scope:** Implement semantic checks that run after JSON Schema validation passes, per the Semantic Validation Rules section of `compiler.spec.md`: UUID uniqueness across all nodes; `custom_weights` keys match child ids exactly and sum to `1.0 ± 0.001`; `select.count >= 1` and `<= len(children)`; lookback required for all metric functions except `current_price`; `start_date < end_date`; `rebalance_threshold` between 0 and 1 if set. Each violation raises `DSLValidationError` with the offending node's `id` and `name`.
   > **Out of scope:** Recursive node instantiation (C4).
   > **Depends on:** C2.
 
-- [open] C4 — Recursive tree instantiation + lookback conversion
+- [done] C4 — Recursive tree instantiation + lookback conversion
   > **Files:** `moa_allocations/compiler/compiler.py` (complete), `moa_allocations/compiler/__init__.py`
   > **Scope:** Implement the final step of `compile_strategy(path)`: recursively walk `root_node` and instantiate the node class hierarchy from C1. Convert all `time_offset` strings to integer trading days (`d×1`, `w×5`, `m×21`) on `Condition` and `sortMetric` objects. Return a fully linked `RootNode` with `settings` attached. Export `compile_strategy` from `compiler/__init__.py`. Never return a partially built tree — any error raises `DSLValidationError`.
   > **Out of scope:** AlgoStack attachment (E1).
