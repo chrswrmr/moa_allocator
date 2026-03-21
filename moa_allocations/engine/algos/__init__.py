@@ -1,3 +1,6 @@
+from moa_allocations.engine.algos.base import BaseAlgo
 from moa_allocations.engine.algos.metrics import compute_metric
+from moa_allocations.engine.algos.selection import SelectAll
+from moa_allocations.engine.algos.weighting import WeightEqually
 
-__all__ = ["compute_metric"]
+__all__ = ["BaseAlgo", "compute_metric", "SelectAll", "WeightEqually"]

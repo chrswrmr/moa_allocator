@@ -11,7 +11,8 @@
       "Bash(openspec instructions:*)",
       "Bash(uv run:*)",
       "Bash(openspec new:*)",
-      "Bash(openspec specs:*)"
+      "Bash(openspec specs:*)",
+      "Bash(openspec sync:*)"
     ]
   }
 }
