@@ -9,7 +9,9 @@
       "Bash(uv sync:*)",
       "Bash(openspec status:*)",
       "Bash(openspec instructions:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(openspec new:*)",
+      "Bash(openspec specs:*)"
     ]
   }
 }

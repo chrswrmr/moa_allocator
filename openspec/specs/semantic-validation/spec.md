@@ -1,0 +1,130 @@
+# semantic-validation
+
+**Module:** `moa_allocations/compiler/`
+
+Post-schema semantic checks in `compile_strategy()`. Runs as Step 3 after JSON Schema validation passes and before node instantiation begins. Enforces cross-field invariants that JSON Schema cannot express.
+
+---
+
+## Requirements
+
+### Requirement: UUID uniqueness
+`_validate_semantics()` SHALL collect every node `id` across the entire document (settings node, all nodes in the `root_node` tree, including nodes inside `true_branch`, `false_branch`, and all `children` arrays at every depth). All collected `id` values MUST be unique. On the first duplicate found, it SHALL raise `DSLValidationError` identifying the offending node.
+
+#### Scenario: All node ids are unique
+- **WHEN** every node in the document has a distinct UUID
+- **THEN** no error is raised and validation continues
+
+#### Scenario: Duplicate node id detected
+- **WHEN** two nodes share the same `id` value
+- **THEN** `DSLValidationError` is raised with the `id` and `name` of the duplicate node
+
+---
+
+### Requirement: Defined weight completeness and sum
+For every `weight` node whose `method` is `"defined"`, `_validate_semantics()` SHALL verify that the keys in `method_params.custom_weights` exactly match the `id` values of the node's `children` array (no missing keys, no extra keys) and that the values sum to `1.0 ± 0.001`. Any mismatch SHALL raise `DSLValidationError` with the `id` and `name` of the offending weight node.
+
+#### Scenario: custom_weights keys and sum are correct
+- **WHEN** a `defined` weight node's `custom_weights` keys match all child ids and values sum to 1.0
+- **THEN** no error is raised
+
+#### Scenario: custom_weights key missing for a child
+- **WHEN** a child `id` is absent from `custom_weights`
+- **THEN** `DSLValidationError` is raised with the weight node's `id` and `name`
+
+#### Scenario: custom_weights has an extra key not in children
+- **WHEN** `custom_weights` contains a key that does not correspond to any child `id`
+- **THEN** `DSLValidationError` is raised with the weight node's `id` and `name`
+
+#### Scenario: custom_weights values do not sum to 1.0
+- **WHEN** the sum of `custom_weights` values deviates from `1.0` by more than `0.001`
+- **THEN** `DSLValidationError` is raised with the weight node's `id` and `name`
+
+#### Scenario: custom_weights values sum within tolerance
+- **WHEN** the sum of `custom_weights` values is within `[0.999, 1.001]`
+- **THEN** no error is raised
+
+---
+
+### Requirement: Filter select count bound
+For every `filter` node, `_validate_semantics()` SHALL verify that `select.count` is >= 1 and <= `len(children)`. Any violation SHALL raise `DSLValidationError` with the `id` and `name` of the offending filter node.
+
+#### Scenario: select.count within valid range
+- **WHEN** `select.count` is >= 1 and <= the number of children
+- **THEN** no error is raised
+
+#### Scenario: select.count equals len(children)
+- **WHEN** `select.count` equals the number of children
+- **THEN** no error is raised (selecting all is valid)
+
+#### Scenario: select.count exceeds len(children)
+- **WHEN** `select.count` is greater than the number of children
+- **THEN** `DSLValidationError` is raised with the filter node's `id` and `name`, and a message including the count and children count
+
+---
+
+### Requirement: Lookback required for metric functions
+For every conditionMetric object (in `if_else` conditions' `lhs` and `rhs` fields) and every sortMetric object (in `filter` nodes' `sort_by` field), `_validate_semantics()` SHALL verify that a `lookback` field is present whenever the `function` is not `"current_price"`. Any violation SHALL raise `DSLValidationError` with the `id` and `name` of the enclosing node.
+
+#### Scenario: Non-current_price metric has lookback
+- **WHEN** a conditionMetric or sortMetric uses any function other than `current_price` and provides a `lookback` value
+- **THEN** no error is raised
+
+#### Scenario: current_price metric without lookback
+- **WHEN** a conditionMetric or sortMetric uses `"current_price"` and has no `lookback` field
+- **THEN** no error is raised
+
+#### Scenario: Non-current_price metric missing lookback
+- **WHEN** a conditionMetric or sortMetric uses any function other than `"current_price"` and has no `lookback` field
+- **THEN** `DSLValidationError` is raised with the `id` and `name` of the enclosing node
+
+---
+
+### Requirement: Date ordering
+`_validate_semantics()` SHALL verify that `settings.start_date` is strictly before `settings.end_date`. On violation it SHALL raise `DSLValidationError(node_id="root", node_name="settings", message=...)`.
+
+#### Scenario: start_date before end_date
+- **WHEN** `start_date` is an earlier date than `end_date`
+- **THEN** no error is raised
+
+#### Scenario: start_date equals end_date
+- **WHEN** `start_date` and `end_date` are the same date
+- **THEN** `DSLValidationError` is raised with `node_id="root"` and `node_name="settings"`
+
+#### Scenario: start_date after end_date
+- **WHEN** `start_date` is a later date than `end_date`
+- **THEN** `DSLValidationError` is raised with `node_id="root"` and `node_name="settings"`
+
+---
+
+### Requirement: Rebalance threshold range
+If `settings.rebalance_threshold` is present, `_validate_semantics()` SHALL verify that its value is strictly greater than `0` and strictly less than `1`. On violation it SHALL raise `DSLValidationError(node_id="root", node_name="settings", message=...)`.
+
+#### Scenario: rebalance_threshold absent
+- **WHEN** `rebalance_threshold` is not present in settings
+- **THEN** no error is raised
+
+#### Scenario: rebalance_threshold within valid range
+- **WHEN** `rebalance_threshold` is set to a value in `(0, 1)` exclusive
+- **THEN** no error is raised
+
+#### Scenario: rebalance_threshold is zero
+- **WHEN** `rebalance_threshold` is set to `0.0`
+- **THEN** `DSLValidationError` is raised with `node_id="root"` and `node_name="settings"`
+
+#### Scenario: rebalance_threshold is one or greater
+- **WHEN** `rebalance_threshold` is set to `1.0` or any value >= 1
+- **THEN** `DSLValidationError` is raised with `node_id="root"` and `node_name="settings"`
+
+---
+
+### Requirement: Semantic validation completes before node instantiation
+`_validate_semantics()` MUST complete without error before any node instantiation begins. If any semantic rule is violated, `DSLValidationError` is raised and no node objects are created.
+
+#### Scenario: All rules pass
+- **WHEN** all semantic checks pass
+- **THEN** `_validate_semantics()` returns `None` and node instantiation proceeds
+
+#### Scenario: Any rule fails
+- **WHEN** any semantic check raises `DSLValidationError`
+- **THEN** node instantiation does not begin and the error propagates to the caller
