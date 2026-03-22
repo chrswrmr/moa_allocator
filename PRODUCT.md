@@ -107,7 +107,7 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
   > **Out of scope:** Downward Pass execution (E3); threshold drift logic.
   > **Depends on:** E1.
 
-- [open] E3 — Downward Pass: AlgoStack execution + `XCASHX` fallback
+- [done] E3 — Downward Pass: AlgoStack execution + `XCASHX` fallback
   > **Files:** `moa_allocations/engine/runner.py` (extend)
   > **Scope:** Implement the Downward Pass for each rebalance day: reset `node.temp` at start of each day; execute each `StrategyNode`'s `AlgoStack` top-down; normalise `node.temp['weights']` to sum to `1.0` after each stack; if any Algo returns `False` or selection is empty, set `node.temp['weights'] = {'XCASHX': 1.0}`. `XCASHX` is a virtual leaf with return `0.0` — no price series required.
   > **Out of scope:** Weight flattening and output (E4).

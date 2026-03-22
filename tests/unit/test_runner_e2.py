@@ -522,7 +522,7 @@ class TestRunIntegration:
             expected *= 1.0 + 0.6 * ret_a + 0.4 * ret_b
             np.testing.assert_allclose(nav[t], expected, rtol=1e-10)
 
-    def test_run_returns_none(self):
+    def test_run_returns_dataframe(self):
         spy = _asset("spy", "SPY")
         node = _weight_equal("root", [spy])
         prices = [100.0 + i for i in range(3)]
@@ -531,7 +531,8 @@ class TestRunIntegration:
         root = _root(node, start="2024-01-02", end="2024-01-04")
         runner = Runner(root, price_data)
         node.temp["weights"] = {"spy": 1.0}
-        assert runner.run() is None
+        result = runner.run()
+        assert isinstance(result, pd.DataFrame)
 
 
 # ---------------------------------------------------------------------------

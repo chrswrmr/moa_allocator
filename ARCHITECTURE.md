@@ -62,6 +62,7 @@
 **Called by:** `engine/runner.py` — fetches prices by ticker and date range at initialisation  
 **Contract:** Returns `pd.DataFrame` with `DatetimeIndex`, uppercase ticker columns, float values, no NaN gaps within the backtest window, date range covering at least `[start_date - max_lookback, end_date]`  
 **Boundary:** `pidb_ib.get_prices(tickers: list[str], start: str, end: str) -> pd.DataFrame`
+
 **documentation** [pidb_ib_API_access.md](helpful_docs\pidb_ib_API_access.md)
 
 ## Design Principles
