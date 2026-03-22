@@ -12,7 +12,9 @@
       "Bash(uv run:*)",
       "Bash(openspec new:*)",
       "Bash(openspec specs:*)",
-      "Bash(openspec sync:*)"
+      "Bash(openspec sync:*)",
+      "Bash(mkdir -p openspec/changes/archive)",
+      "Bash(mv openspec/changes/e1-runner-init openspec/changes/archive/2026-03-22-e1-runner-init)"
     ]
   }
 }
