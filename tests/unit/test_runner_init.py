@@ -18,7 +18,7 @@ from moa_allocations.engine.algos import (
     WeightSpecified,
 )
 from moa_allocations.engine.node import AssetNode, FilterNode, IfElseNode, WeightNode
-from moa_allocations.engine.runner import _compute_max_lookback
+from moa_allocations.engine.runner import compute_max_lookback
 from moa_allocations.engine.strategy import RootNode, Settings
 
 
@@ -342,7 +342,7 @@ class TestChildSeriesStrategyPlaceholder:
 
 
 # ---------------------------------------------------------------------------
-# 7.8  _compute_max_lookback — maximum across mixed node types
+# 7.8  compute_max_lookback — maximum across mixed node types
 # ---------------------------------------------------------------------------
 
 class TestComputeMaxLookback:
@@ -350,13 +350,13 @@ class TestComputeMaxLookback:
         spy = _asset("spy", "SPY")
         bnd = _asset("bnd", "BND")
         node = _filter_top("root", [spy, bnd], n=1, metric="cumulative_return", lookback=20)
-        assert _compute_max_lookback(_root(node)) == 20
+        assert compute_max_lookback(_root(node)) == 20
 
     def test_max_from_invvol_node(self):
         spy = _asset("spy", "SPY")
         bnd = _asset("bnd", "BND")
         node = _weight_invvol("root", [spy, bnd], lookback=60)
-        assert _compute_max_lookback(_root(node)) == 60
+        assert compute_max_lookback(_root(node)) == 60
 
     def test_max_from_if_else_condition(self):
         spy = _asset("spy", "SPY")
@@ -364,7 +364,7 @@ class TestComputeMaxLookback:
         conditions = [{"lhs": {"asset": "SPY", "function": "sma_price", "lookback": 200},
                        "comparator": "greater_than", "rhs": 0.0, "duration": 1}]
         node = _if_else("root", conditions, "all", spy, bnd)
-        assert _compute_max_lookback(_root(node)) == 200
+        assert compute_max_lookback(_root(node)) == 200
 
     def test_max_across_mixed_nodes(self):
         # FilterNode=20, WeightNode(invvol)=60, IfElseNode condition=200 → max is 200
@@ -377,9 +377,9 @@ class TestComputeMaxLookback:
                        "comparator": "greater_than", "rhs": 0.0, "duration": 1}]
         if_node = _if_else("if", conditions, "all", gld, tlt)
         outer = _weight_invvol("outer", [filter_node, if_node], lookback=60)
-        assert _compute_max_lookback(_root(outer)) == 200
+        assert compute_max_lookback(_root(outer)) == 200
 
     def test_no_lookback_returns_zero(self):
         spy = _asset("spy", "SPY")
         node = _weight_equal("root", [spy])
-        assert _compute_max_lookback(_root(node)) == 0
+        assert compute_max_lookback(_root(node)) == 0

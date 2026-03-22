@@ -24,7 +24,7 @@ class PriceDataError(Exception):
         super().__init__(message)
 
 
-def _collect_tickers(root: RootNode) -> set[str]:
+def collect_tickers(root: RootNode) -> set[str]:
     """BFS walk — collect all tickers referenced in AssetNode leaves and IfElseNode conditions."""
     tickers: set[str] = set()
     queue: collections.deque = collections.deque([root.root])
@@ -48,7 +48,7 @@ def _collect_tickers(root: RootNode) -> set[str]:
     return tickers
 
 
-def _compute_max_lookback(root: RootNode) -> int:
+def compute_max_lookback(root: RootNode) -> int:
     """BFS walk — return maximum lookback (trading days) across all nodes."""
     max_lb = 0
     queue: collections.deque = collections.deque([root.root])
@@ -133,8 +133,8 @@ class Runner:
         self.settings = root.settings
 
         # --- Collect all required tickers and max lookback (single BFS each) ---
-        tickers = _collect_tickers(root)
-        self.max_lookback = _compute_max_lookback(root)
+        tickers = collect_tickers(root)
+        self.max_lookback = compute_max_lookback(root)
 
         # --- Validation ---
         missing = tickers - set(price_data.columns)
@@ -235,6 +235,9 @@ class Runner:
         # Leaf order for DataFrame column assembly
         self._leaf_order: list[str] = _collect_leaf_order(root)
 
+        # Per-node weight store: carries weights across days for upward pass and carry-forward
+        self._prev_weights: dict[str, dict[str, float]] = {}
+
     def _flatten_weights(self) -> dict[str, float]:
         """DFS from root: multiply cumulative parent weight by local weights, accumulate leaf tickers."""
         acc: dict[str, float] = {}
@@ -291,13 +294,36 @@ class Runner:
                 if child_id in self._strategy_nodes:
                     child_series[child_id] = self._strategy_nodes[child_id].perm["nav_array"][: t_idx + 1]
 
+    def _downward_pass(self, t_idx: int) -> None:
+        """Top-down AlgoStack execution: iterate root-first, run each node's algo_stack."""
+        for node in reversed(self._upward_order):
+            for algo in node.algo_stack:
+                if not algo(node):
+                    node.temp["weights"] = {"XCASHX": 1.0}
+                    break
+            else:
+                # Normalise weights to sum to 1.0; fall back to XCASHX if sum is 0
+                weights = node.temp.get("weights", {})
+                total = sum(weights.values())
+                if total == 0.0:
+                    node.temp["weights"] = {"XCASHX": 1.0}
+                elif abs(total - 1.0) > 1e-12:
+                    node.temp["weights"] = {k: v / total for k, v in weights.items()}
+
+            self._prev_weights[node.id] = node.temp["weights"]
+
     def run(self) -> pd.DataFrame:
         """Simulate over _sim_dates. Upward Pass every day (t_idx > 0); Downward Pass on rebalance days."""
         rows: list[dict] = []
-        prev_weights: dict[str, float] = {}
         xcashx_seen = False
 
         for t_idx, current_date in enumerate(self._sim_dates):
+            # Reset temp for all strategy nodes, then restore prior-day weights
+            for node in self._strategy_nodes.values():
+                node.temp = {"t_idx": t_idx}
+            for node_id, w in self._prev_weights.items():
+                self._strategy_nodes[node_id].temp["weights"] = w
+
             if t_idx > 0:
                 self._upward_pass(t_idx)
                 self._update_child_series_views(t_idx)
@@ -308,15 +334,13 @@ class Runner:
                 prev_date = self._sim_dates[t_idx - 1]
                 is_rebalance = _is_rebalance_day(current_date, prev_date, self.settings.rebalance_frequency)
 
-            date_str = current_date.strftime("%Y-%m-%d")
             if is_rebalance:
-                # Downward Pass placeholder — E3
-                weights = self._flatten_weights()
-                if "XCASHX" in weights:
-                    xcashx_seen = True
-                prev_weights = weights
-            else:
-                weights = prev_weights
+                self._downward_pass(t_idx)
+
+            date_str = current_date.strftime("%Y-%m-%d")
+            weights = self._flatten_weights()
+            if "XCASHX" in weights:
+                xcashx_seen = True
 
             row: dict = {"DATE": date_str}
             row.update(weights)

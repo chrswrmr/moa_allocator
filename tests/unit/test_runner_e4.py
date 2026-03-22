@@ -9,7 +9,8 @@ import pandas as pd
 import pytest
 
 from moa_allocations.engine import Runner
-from moa_allocations.engine.node import AssetNode, FilterNode, IfElseNode, WeightNode
+from moa_allocations.engine.algos.base import BaseAlgo
+from moa_allocations.engine.node import AssetNode, FilterNode, IfElseNode, StrategyNode, WeightNode
 from moa_allocations.engine.strategy import RootNode, Settings
 
 
@@ -257,7 +258,11 @@ class TestDataFrameColumnOrder:
         root = _root(node)
         runner = Runner(root, _price_data(["SPY", "BND"]))
 
-        node.temp["weights"] = {"XCASHX": 1.0}
+        class _AlwaysFalse(BaseAlgo):
+            def __call__(self, target: StrategyNode) -> bool:
+                return False
+
+        runner._strategy_nodes["root"].algo_stack = [_AlwaysFalse()]
         df = runner.run()
 
         assert df.columns[-1] == "XCASHX"

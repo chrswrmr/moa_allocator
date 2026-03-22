@@ -113,7 +113,7 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
   > **Out of scope:** Weight flattening and output (E4).
   > **Depends on:** E1, E2.
 
-- [open] E4 — Global Weight Vector + output assembly
+- [done] E4 — Global Weight Vector + output assembly
   > **Files:** `moa_allocations/engine/runner.py` (complete), `moa_allocations/engine/__init__.py`
   > **Scope:** After each Downward Pass, flatten local weights root → leaves: `global_weight(leaf) = ∏ local_weights along path`. Assert all leaf weights sum to `1.0`. Collect daily weight vectors into `pd.DataFrame` with `DATE` as first column, uppercase tickers in DSL leaf order, `XCASHX` last if present. Write to `output/allocations.csv` (create `output/` if absent). Export `Runner` from `engine/__init__.py`.
   > **Out of scope:** `run()` public entry point wiring (I1).
