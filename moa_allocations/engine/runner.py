@@ -96,6 +96,17 @@ def _build_algo_stack(node: StrategyNode) -> list:
     return []
 
 
+def _is_rebalance_day(current_date, prev_date, frequency: str) -> bool:
+    """Return True if current_date is a rebalance day given frequency."""
+    if frequency == "daily":
+        return True
+    elif frequency == "weekly":
+        return current_date.isocalendar()[:2] != prev_date.isocalendar()[:2]
+    elif frequency == "monthly":
+        return current_date.month != prev_date.month
+    return True
+
+
 class Runner:
     def __init__(self, root: RootNode, price_data: pd.DataFrame) -> None:
         self.root = root
@@ -138,13 +149,29 @@ class Runner:
                 f"price_data ends at {last}, before end_date {self.settings.end_date}"
             )
 
+        # --- Simulation date range and price offset ---
+        self._sim_dates = idx[(idx >= start_ts) & (idx <= end_ts)]
+        self._price_offset = int(idx.searchsorted(start_ts, side="left"))
+        assert price_data.index[self._price_offset] == start_ts
+
+        T = len(self._sim_dates)
+
         # --- AlgoStack attachment + child_series pre-computation (single BFS) ---
-        queue: collections.deque = collections.deque([root.root])
+        depth_nodes: list[tuple[int, StrategyNode]] = []
+        self._strategy_nodes: dict[str, StrategyNode] = {}
+
+        queue: collections.deque = collections.deque([(root.root, 0)])
         while queue:
-            node = queue.popleft()
+            node, depth = queue.popleft()
             if isinstance(node, AssetNode):
                 continue
 
+            # Allocate nav_array if not already done (eagerly pre-allocated by parent, or root)
+            if "nav_array" not in node.perm:
+                node.perm["nav_array"] = np.ones(T, dtype=np.float64)
+
+            self._strategy_nodes[node.id] = node
+            depth_nodes.append((depth, node))
             node.algo_stack = _build_algo_stack(node)
             child_series: dict[str, np.ndarray] = {}
 
@@ -153,16 +180,20 @@ class Runner:
                     if isinstance(child, AssetNode):
                         child_series[child.id] = price_data[child.ticker].to_numpy()
                     else:
-                        child_series[child.id] = np.array([], dtype=np.float64)
-                    queue.append(child)
+                        if "nav_array" not in child.perm:
+                            child.perm["nav_array"] = np.ones(T, dtype=np.float64)
+                        child_series[child.id] = child.perm["nav_array"][:1]
+                    queue.append((child, depth + 1))
 
             elif isinstance(node, IfElseNode):
                 for branch in (node.true_branch, node.false_branch):
                     if isinstance(branch, AssetNode):
                         child_series[branch.id] = price_data[branch.ticker].to_numpy()
                     else:
-                        child_series[branch.id] = np.array([], dtype=np.float64)
-                    queue.append(branch)
+                        if "nav_array" not in branch.perm:
+                            branch.perm["nav_array"] = np.ones(T, dtype=np.float64)
+                        child_series[branch.id] = branch.perm["nav_array"][:1]
+                    queue.append((branch, depth + 1))
                 for cond in node.conditions:
                     lhs = cond.get("lhs", {})
                     if "asset" in lhs:
@@ -174,3 +205,56 @@ class Runner:
                         child_series[asset] = price_data[asset].to_numpy()
 
             node.perm["child_series"] = child_series
+
+        # Sort by depth descending — deepest nodes first (bottom-up order)
+        depth_nodes.sort(key=lambda x: x[0], reverse=True)
+        self._upward_order: list[StrategyNode] = [n for _, n in depth_nodes]
+
+    def _upward_pass(self, t_idx: int) -> None:
+        """Bottom-up NAV update: iterate _upward_order and compute each node's nav_array[t_idx]."""
+        for node in self._upward_order:
+            weights = node.temp.get("weights", {})
+            if not weights:
+                continue
+
+            weighted_return = 0.0
+            for child_id, weight in weights.items():
+                if child_id == "XCASHX":
+                    child_return = 0.0
+                elif child_id in self._strategy_nodes:
+                    child_nav = self._strategy_nodes[child_id].perm["nav_array"]
+                    child_return = child_nav[t_idx] / child_nav[t_idx - 1] - 1.0
+                else:
+                    price_arr = node.perm["child_series"][child_id]
+                    child_return = (
+                        price_arr[self._price_offset + t_idx]
+                        / price_arr[self._price_offset + t_idx - 1]
+                        - 1.0
+                    )
+                weighted_return += weight * child_return
+
+            node.perm["nav_array"][t_idx] = node.perm["nav_array"][t_idx - 1] * (1.0 + weighted_return)
+
+    def _update_child_series_views(self, t_idx: int) -> None:
+        """Update child_series views for StrategyNode children to include day t_idx."""
+        for node in self._upward_order:
+            child_series = node.perm["child_series"]
+            for child_id in child_series:
+                if child_id in self._strategy_nodes:
+                    child_series[child_id] = self._strategy_nodes[child_id].perm["nav_array"][: t_idx + 1]
+
+    def run(self) -> None:
+        """Simulate over _sim_dates. Upward Pass every day (t_idx > 0); Downward Pass on rebalance days."""
+        for t_idx, current_date in enumerate(self._sim_dates):
+            if t_idx > 0:
+                self._upward_pass(t_idx)
+                self._update_child_series_views(t_idx)
+
+            if t_idx == 0:
+                is_rebalance = True
+            else:
+                prev_date = self._sim_dates[t_idx - 1]
+                is_rebalance = _is_rebalance_day(current_date, prev_date, self.settings.rebalance_frequency)
+
+            if is_rebalance:
+                pass  # Downward Pass placeholder — E3

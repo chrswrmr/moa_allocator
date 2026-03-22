@@ -193,17 +193,9 @@ The engine only executes the Downward Pass (AlgoStack) on rebalance days. On non
 | `weekly` | First trading day of each calendar week |
 | `monthly` | First trading day of each calendar month |
 
-**Threshold logic (Scheduled days only):**
-If `rebalance_threshold` is set (> 0), a rebalance is triggered ONLY on a scheduled rebalancing day (defined by `rebalance_frequency`) and ONLY if `abs(current_weight - target_weight) >= rebalance_threshold` for any asset.
+**Threshold drift check:** Deferred to `moa_rebalancer` (see ADR-005). The engine does not act on `rebalance_threshold` — it is stored on `Settings` as a pass-through for downstream consumers.
 
-**Threshold calculation:**
-```
-drift = abs(current_weight - target_weight)
-rebalance if drift >= settings.rebalance_threshold
-order_size = target_weight - current_weight
-```
-
-On non-rebalance days: Upward Pass still runs (NAV update); Downward Pass is skipped; prior weights copied forward.
+On non-rebalance days: Upward Pass still runs (NAV update); Downward Pass is skipped; prior target weights copied forward.
 
 ---
 

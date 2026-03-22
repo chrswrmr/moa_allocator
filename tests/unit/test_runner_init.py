@@ -323,11 +323,11 @@ class TestChildSeriesIfElseConditionAssets:
 
 
 # ---------------------------------------------------------------------------
-# 7.7  child_series — StrategyNode child gets empty placeholder
+# 7.7  child_series — StrategyNode child gets nav_array[:1] view (E2)
 # ---------------------------------------------------------------------------
 
 class TestChildSeriesStrategyPlaceholder:
-    def test_strategy_child_series_is_empty_ndarray(self):
+    def test_strategy_child_series_is_nav_array_view(self):
         spy = _asset("spy", "SPY")
         inner = _weight_equal("inner", [spy])
         outer = _weight_equal("outer", [inner])
@@ -335,7 +335,10 @@ class TestChildSeriesStrategyPlaceholder:
         Runner(root, _price_data(["SPY"]))
         placeholder = outer.perm["child_series"]["inner"]
         assert isinstance(placeholder, np.ndarray)
-        assert len(placeholder) == 0
+        assert len(placeholder) == 1
+        assert placeholder[0] == 1.0
+        # Must share memory with inner's nav_array (is a view, not a copy)
+        assert np.shares_memory(placeholder, inner.perm["nav_array"])
 
 
 # ---------------------------------------------------------------------------

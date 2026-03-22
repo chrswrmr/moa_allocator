@@ -87,7 +87,7 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
   > **Out of scope:** Condition evaluation (A4).
   > **Depends on:** C1, A1, A2.
 
-- [open] A4 — `SelectIfCondition` + `WeightSpecified`
+- [done] A4 — `SelectIfCondition` + `WeightSpecified`
   > **Files:** `moa_allocations/engine/algos/selection.py` (extend), `moa_allocations/engine/algos/weighting.py` (extend)
   > **Scope:** Implement `SelectIfCondition(conditions, logic_mode)` — evaluate each condition's `lhs [comparator] rhs` at every day in the `duration` trailing window; combine with `all`/`any`; write `true_branch.id` or `false_branch.id` to `target.temp['selected']`; always returns `True`. Implement `WeightSpecified(custom_weights)` — assign pre-validated weights from `custom_weights` dict directly to `target.temp['weights']`. Exact duration semantics per `algos.spec.md`.
   > **Out of scope:** AlgoStack construction and attachment (E1).
@@ -95,16 +95,16 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
 
 **Phase 3 — Engine** `[input: engine.spec.md]`
 
-- [open] E1 — `Runner` init: AlgoStack construction + `pidb_ib` wiring + `PriceDataError`
+- [done] E1 — `Runner` init: AlgoStack construction + `pidb_ib` wiring + `PriceDataError`
   > **Files:** `moa_allocations/engine/runner.py`, `moa_allocations/engine/__init__.py`
   > **Scope:** Implement `Runner.__init__(root: RootNode, price_data: pd.DataFrame)`. Traverse the compiled tree and attach the correct `AlgoStack` to each `StrategyNode` based on node type and parameters (per AlgoStack composition table in `algos.spec.md`). Pre-convert all price/NAV series to numpy arrays and store on `node.perm`. Validate all required tickers are present in `price_data.columns` and date range covers `[start_date - max_lookback, end_date]`; raise `PriceDataError` otherwise. Wire `pidb_ib.get_prices(tickers, start, end)` as the price source in `run()`.
   > **Out of scope:** Simulation loop (E2–E4).
   > **Depends on:** C1–C4, A1–A4.
 
-- [open] E2 — Upward Pass: NAV update + rebalance frequency
+- [done] E2 — Upward Pass: NAV update + rebalance frequency
   > **Files:** `moa_allocations/engine/runner.py` (extend)
-  > **Scope:** Implement the Upward Pass for each trading day: update `node.perm['nav']` bottom-up using `nav[t] = nav[t-1] × (1 + weighted_return[t])`, initialised to `1.0` on `start_date`. For `if_else` nodes: update both branches every day; use active branch return only for the node's own NAV. Implement rebalance schedule logic (`daily` / `weekly` / `monthly`) and threshold drift check — on non-rebalance days, skip Downward Pass and carry prior weights forward.
-  > **Out of scope:** Downward Pass execution (E3).
+  > **Scope:** Implement the Upward Pass for each trading day: update `node.perm['nav']` bottom-up using `nav[t] = nav[t-1] × (1 + weighted_return[t])`, initialised to `1.0` on `start_date`. For `if_else` nodes: update both branches every day; use active branch return only for the node's own NAV. Implement rebalance schedule logic (`daily` / `weekly` / `monthly`) as a calendar gate — on non-rebalance days, skip Downward Pass and carry prior target weights forward. Threshold drift check is deferred to `moa_rebalancer` (ADR-005).
+  > **Out of scope:** Downward Pass execution (E3); threshold drift logic.
   > **Depends on:** E1.
 
 - [open] E3 — Downward Pass: AlgoStack execution + `XCASHX` fallback

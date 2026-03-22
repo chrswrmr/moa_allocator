@@ -159,6 +159,50 @@ untyped dict.
 
 ---
 
+## ADR-005 — Threshold drift check deferred to moa_rebalancer
+
+**Date:** 2026-03-22
+**Status:** Accepted
+
+### Context
+
+The DSL schema includes `rebalance_threshold` (0.0–1.0) alongside `rebalance_frequency`. The original engine spec (engine.spec.md) had the engine computing weight-space drift on scheduled rebalance days and skipping the Downward Pass when no asset drifts beyond the threshold. This would require tracking two weight vectors per node (drifted vs target), complicate the Upward Pass (which weights to use for NAV?), and produce output rows with drifted weights that are harder for users to interpret ("why does day 47 show 0.63 SPY when my strategy says 0.60?").
+
+Meanwhile, `moa_rebalancer` / `bt_rebalancer` already has access to actual portfolio positions, fills, and cash balance — the real inputs for a drift decision. The engine's weight-space drift is an approximation of something the rebalancer will compute exactly.
+
+### Options Considered
+
+1. **Drift check in the engine** — engine tracks drifted weights, compares to targets on schedule days, skips Downward Pass if below threshold. Output reflects actual held weights including drift.
+2. **Drift check in moa_rebalancer** — engine always outputs target weights on scheduled rebalance days. Rebalancer applies drift logic against real portfolio state before generating orders.
+
+### Decision
+
+We chose **option 2 — drift check in moa_rebalancer**. The engine interprets `rebalance_frequency` (daily/weekly/monthly) as a calendar gate only. It does not act on `rebalance_threshold`. The field remains in the DSL schema and on `Settings` as a pass-through — the rebalancer reads it from the strategy file or output metadata and applies it against actual positions.
+
+### Rationale
+
+- **P1 alignment** — nodes are capital-blind. Drift checking is fundamentally a portfolio-management concern. Even though weight-space drift is computable, it approximates something the rebalancer gets right by definition.
+- **Simplicity** — no second weight vector, no drifted-weight NAV path, no ambiguous output rows. The engine's Upward Pass always uses prior target weights for NAV computation.
+- **Correct drift source** — the rebalancer knows actual positions, partial fills, and cash drag. Its drift check is grounded in reality.
+- **User clarity** — the output CSV always shows intended allocations. No surprise drifted rows to explain.
+
+### Consequences
+
+- ✅ E2 (Upward Pass) is simpler — rebalance gating is calendar-only
+- ✅ Output is always "what should the portfolio look like" — clean and interpretable
+- ✅ No schema change needed — `rebalance_threshold` stays in the DSL, just interpreted downstream
+- ⚠️ Backtest NAV assumes perfect rebalancing on every schedule day — slight overstatement of turnover vs reality for monthly + tight thresholds
+- ⚠️ Accurate threshold-aware backtesting requires running both `moa_allocator` and `moa_rebalancer` in sequence
+
+### Scope of `rebalance_threshold` in this codebase
+
+- `Settings.rebalance_threshold` — stored, not acted on
+- Compiler semantic validation — unchanged (validates 0–1 range if set)
+- Engine — ignores the field entirely
+- Documentation — must note "interpreted by moa_rebalancer, not by the engine"
+
+---
+
 <!-- Add new ADRs above this line, incrementing the number -->
 
 
