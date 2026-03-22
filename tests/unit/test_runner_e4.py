@@ -291,11 +291,11 @@ class TestXCASHXAbsent:
 
 
 # ---------------------------------------------------------------------------
-# 6.9  CSV written to output/allocations.csv
+# 6.9  Runner.run() returns DataFrame — no filesystem side-effects
 # ---------------------------------------------------------------------------
 
-class TestCSVOutput:
-    def test_csv_written(self, tmp_path, monkeypatch):
+class TestRunnerOutput:
+    def test_run_returns_dataframe(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
         spy = _asset("spy", "SPY")
@@ -306,43 +306,10 @@ class TestCSVOutput:
         runner = Runner(root, price_data)
 
         node.temp["weights"] = {"spy": 1.0}
-        runner.run()
+        result = runner.run()
 
-        csv_path = tmp_path / "output" / "allocations.csv"
-        assert csv_path.exists()
-        loaded = pd.read_csv(csv_path)
-        assert list(loaded.columns) == ["DATE", "SPY"]
-        assert len(loaded) == 3
-
-    def test_csv_no_index_column(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-
-        spy = _asset("spy", "SPY")
-        node = _weight_equal("root", [spy])
-        index = pd.bdate_range("2024-01-02", periods=2)
-        price_data = pd.DataFrame({"SPY": [100.0, 101.0]}, index=index)
-        root = _root(node, start="2024-01-02", end="2024-01-03")
-        runner = Runner(root, price_data)
-
-        node.temp["weights"] = {"spy": 1.0}
-        runner.run()
-
-        loaded = pd.read_csv(tmp_path / "output" / "allocations.csv")
-        # If index=False, first column is DATE not Unnamed: 0
-        assert loaded.columns[0] == "DATE"
-
-    def test_output_dir_created_if_absent(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+        assert isinstance(result, pd.DataFrame)
+        assert list(result.columns) == ["DATE", "SPY"]
+        assert len(result) == 3
+        # No filesystem side-effects — output/ must not be created by Runner
         assert not (tmp_path / "output").exists()
-
-        spy = _asset("spy", "SPY")
-        node = _weight_equal("root", [spy])
-        index = pd.bdate_range("2024-01-02", periods=2)
-        price_data = pd.DataFrame({"SPY": [100.0, 101.0]}, index=index)
-        root = _root(node, start="2024-01-02", end="2024-01-03")
-        runner = Runner(root, price_data)
-
-        node.temp["weights"] = {"spy": 1.0}
-        runner.run()
-
-        assert (tmp_path / "output").is_dir()

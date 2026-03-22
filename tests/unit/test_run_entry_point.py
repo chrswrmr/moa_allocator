@@ -56,7 +56,7 @@ _INVVOL_DOC = {
         "id": "c3d4e5f6-a7b8-9012-cdef-123456789013",
         "type": "weight",
         "method": "inverse_volatility",
-        "lookback": "200d",
+        "method_params": {"lookback": "200d"},
         "children": [
             {"id": "d1", "type": "asset", "ticker": "SPY"},
             {"id": "d2", "type": "asset", "ticker": "IWM"},

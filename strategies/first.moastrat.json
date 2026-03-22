@@ -1,0 +1,119 @@
+{
+  "id": "88888888-4444-4444-4444-121212121212",
+  "version-dsl": "1.0.0",
+  "settings": {
+    "id": "a2b3c4d5-e6f7-8901-2345-67890abcdef1",
+    "name": "Sohail - Ultimate Portfolio (Constrained)",
+    "starting_cash": 100000,
+    "start_date": "2024-01-01",
+    "end_date": "2026-01-01",
+    "rebalance_frequency": "daily"
+  },
+  "root_node": {
+    "id": "e4e4e4e4-d3d3-4b4b-a1a1-fcfcfcfcfcfc",
+    "name": "Market Volatility Switch",
+    "type": "if_else",
+    "logic_mode": "all",
+    "conditions": [
+      {
+        "lhs": { "asset": "QQQ", "function": "cumulative_return", "lookback": "5d" },
+        "comparator": "less_than",
+        "rhs": -5.5
+      }
+    ],
+    "true_branch": {
+      "id": "v1v1v1v1-v2v2-v3v3-v4v4-v5v5v5v5v5v5",
+      "name": "Volatile Market Branch",
+      "type": "weight",
+      "method": "defined",
+      "method_params": {
+        "custom_weights": {
+          "vxx-logic-id": 0.2,
+          "shv-id": 0.8
+        }
+      },
+      "children": [
+        {
+          "id": "vxx-logic-id",
+          "name": "Conditional VXX",
+          "type": "if_else",
+          "logic_mode": "all",
+          "conditions": [
+            {
+              "lhs": { "asset": "VXX", "function": "rsi", "lookback": "21d" },
+              "comparator": "greater_than",
+              "rhs": 62
+            }
+          ],
+          "true_branch": { "id": "asset-vxx", "type": "asset", "ticker": "VXX" },
+          "false_branch": { "id": "shv-id", "type": "asset", "ticker": "SHV" }
+        }
+      ]
+    },
+    "false_branch": {
+      "id": "c1c1c1c1-c2c2-c3c3-c4c4-c5c5c5c5c5c5",
+      "name": "Core or SHV Switch",
+      "type": "if_else",
+      "logic_mode": "all",
+      "conditions": [
+        {
+          "lhs": { "asset": "SPY", "function": "cumulative_return", "lookback": "5d" },
+          "comparator": "less_than",
+          "rhs": -5
+        }
+      ],
+      "true_branch": { "id": "shv-id-2", "type": "asset", "ticker": "SHV" },
+      "false_branch": {
+        "id": "core-momentum-id",
+        "name": "Core Momentum Filter",
+        "type": "filter",
+        "sort_by": { "function": "sma_return", "lookback": "30d" },
+        "select": { "mode": "top", "count": 1 },
+        "children": [
+          {
+            "id": "gold-expert-id",
+            "name": "Gold Expert",
+            "type": "if_else",
+            "logic_mode": "all",
+            "conditions": [
+              {
+                "lhs": { "asset": "GLD", "function": "sma_price", "lookback": "50d" },
+                "comparator": "greater_than",
+                "rhs": { "asset": "GLD", "function": "sma_price", "lookback": "200d" }
+              }
+            ],
+            "true_branch": {
+              "id": "gold-bull-id",
+              "type": "if_else",
+              "conditions": [{ "lhs": { "asset": "GLD", "function": "rsi", "lookback": "20d" }, "comparator": "greater_than", "rhs": 80 }],
+              "true_branch": { "id": "asset-shv-3", "type": "asset", "ticker": "SHV" },
+              "false_branch": { "id": "asset-gld", "type": "asset", "ticker": "GLD" }
+            },
+            "false_branch": { "id": "gold-bear-id", "type": "asset", "ticker": "SHV" }
+          },
+          {
+            "id": "bond-expert-id",
+            "name": "Bonds Expert",
+            "type": "if_else",
+            "logic_mode": "all",
+            "conditions": [
+              {
+                "lhs": { "asset": "TLT", "function": "rsi", "lookback": "10d" },
+                "comparator": "greater_than",
+                "rhs": 85
+              }
+            ],
+            "true_branch": { "id": "asset-psq", "type": "asset", "ticker": "PSQ" },
+            "false_branch": { "id": "asset-tlt", "type": "asset", "ticker": "TLT" }
+          },
+          {
+            "id": "equity-momentum-id",
+            "name": "Equity Momentum",
+            "type": "asset",
+            "ticker": "SPMO"
+          }
+        ]
+      }
+    }
+  }
+}

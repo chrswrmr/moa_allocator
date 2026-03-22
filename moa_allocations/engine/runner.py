@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import collections
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -350,8 +349,5 @@ class Runner:
         if xcashx_seen:
             cols.append("XCASHX")
         df = pd.DataFrame(rows, columns=cols).fillna(0.0)
-
-        Path("output").mkdir(exist_ok=True)
-        df.to_csv("output/allocations.csv", index=False)
 
         return df

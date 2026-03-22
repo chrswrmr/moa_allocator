@@ -16,7 +16,10 @@
       "Bash(mkdir -p openspec/changes/archive)",
       "Bash(mv openspec/changes/e1-runner-init openspec/changes/archive/2026-03-22-e1-runner-init)",
       "Bash(openspec list:*)",
-      "Bash(find /c/py/moa_allocator -name *.py -path *compiler* -type f)"
+      "Bash(find /c/py/moa_allocator -name *.py -path *compiler* -type f)",
+      "Bash(uv add:*)",
+      "Bash(grep -n \"inverse_volatility\\\\|lookback\\\\|method_params\" /c/py/moa_allocator/moa_allocations/compiler/*.py)",
+      "Bash(python -c \"from pathlib import Path; p = Path\\(''strategies/momentum.moastrat.json''\\); print\\(Path\\(p.stem\\).stem\\)\")"
     ]
   }
 }

@@ -1,6 +1,6 @@
 ## Purpose
 
-Collect the daily global weight vectors produced by the simulation loop into a `pd.DataFrame` and write it to `output/allocations.csv`. This is the primary deliverable of `Runner.run()` consumed by downstream systems (`bt_rebalancer`, `iba`).
+Collect the daily global weight vectors produced by the simulation loop into a `pd.DataFrame`. `Runner.run()` returns this DataFrame as its sole output — file I/O is the caller's responsibility. The DataFrame is the primary deliverable consumed by downstream systems (`bt_rebalancer`, `iba`) and by the CLI (`main.py`).
 
 ## Requirements
 
@@ -44,17 +44,3 @@ Each cell SHALL contain a `float` in `[0.0, 1.0]`. Every row SHALL sum to `1.0`.
 - **WHEN** all AlgoStacks halted on a given day
 - **THEN** the row has `XCASHX=1.0` and all ticker columns are `0.0`
 
-### Requirement: CSV output
-On every successful `run()` call, the engine SHALL write the allocations DataFrame to `output/allocations.csv`. The `output/` directory SHALL be created if it does not exist. The CSV SHALL have no index column (`index=False`).
-
-#### Scenario: Output directory does not exist
-- **WHEN** `run()` completes and the `output/` directory is absent
-- **THEN** the directory is created and `allocations.csv` is written
-
-#### Scenario: Output directory already exists
-- **WHEN** `run()` completes and `output/` already exists
-- **THEN** `allocations.csv` is written (overwriting any prior file)
-
-#### Scenario: CSV format
-- **WHEN** the DataFrame has columns `['DATE', 'SPY', 'BND', 'XCASHX']`
-- **THEN** the CSV header line is `DATE,SPY,BND,XCASHX` and each data row contains comma-separated float values

@@ -14,7 +14,7 @@ PriceFetcher = Callable[[list[str], str, str], pd.DataFrame]
 
 
 def _default_price_fetcher(tickers: list[str], start_date: str, end_date: str) -> pd.DataFrame:
-    from src.access import PidbReader  # lazy import — pidb_ib only needed for default path
+    from access import PidbReader  # lazy import — pidb_ib only needed for default path
 
     db_path = os.environ.get("PIDB_IB_DB_PATH")
     if not db_path:
