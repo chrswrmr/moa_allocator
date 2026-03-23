@@ -32,6 +32,193 @@ from moa_allocations.engine.node import AssetNode, FilterNode, IfElseNode, Strat
 from moa_allocations.engine.strategy import RootNode
 
 
+def _resolve_child_nav(child_id: str, parent_node, runner: Runner, t_idx: int) -> float:
+    """Return the NAV/price value for a child at t_idx."""
+    if child_id in runner._strategy_nodes:
+        return float(runner._strategy_nodes[child_id].perm["nav_array"][t_idx])
+    price_arr = parent_node.perm["child_series"].get(child_id)
+    if price_arr is not None:
+        return float(price_arr[runner._price_offset + t_idx])
+    return float("nan")
+
+
+def _child_label(child_id: str, runner: Runner) -> str:
+    """Return a display name for a child node."""
+    if child_id in runner._strategy_nodes:
+        return _node_label(runner._strategy_nodes[child_id])
+    if child_id in runner._asset_nodes:
+        return runner._asset_nodes[child_id].ticker
+    return child_id
+
+
+def _nav_label(child_id: str, runner: Runner) -> str:
+    """Return 'price' for asset children, 'nav' for strategy node children."""
+    return "price" if child_id in runner._asset_nodes else "nav"
+
+
+_COMPARATOR_SYMBOLS = {
+    "greater_than": ">",
+    "less_than": "<",
+    "greater_than_or_equal_to": ">=",
+    "less_than_or_equal_to": "<=",
+    "equal_to": "==",
+    "not_equal_to": "!=",
+}
+
+_LOGIC_MODE_LABELS = {"all": "AND", "any": "OR"}
+
+
+def _format_side(side: dict) -> str:
+    fn = side["function"]
+    asset = side["asset"]
+    lookback = side.get("lookback", 1)
+    if fn == "current_price":
+        return f"{asset} {fn}"
+    return f"{asset} {lookback}d {fn}"
+
+
+def _format_condition(cond: dict) -> str:
+    """Format a condition dict as a compact expression string."""
+    lhs_str = _format_side(cond["lhs"])
+    cmp = _COMPARATOR_SYMBOLS.get(cond["comparator"], cond["comparator"])
+    rhs = cond["rhs"]
+    rhs_str = _format_side(rhs) if isinstance(rhs, dict) else str(rhs)
+    return f"{lhs_str} {cmp} {rhs_str}"
+
+
+def _log_upward_weight(node: WeightNode, weights: dict, t_idx: int, nav_val: float, runner: Runner) -> None:
+    node_lbl = _node_label(node)
+    lines = [f"┌─ type=weight-{node.method}  NodeName = {node_lbl}  id={node.id}"]
+    for child_id in weights:
+        if child_id == "XCASHX":
+            lines.append("│  NAV XCASHX nav= 1.000000  id=XCASHX")
+        else:
+            child_val = _resolve_child_nav(child_id, node, runner, t_idx)
+            child_lbl = _child_label(child_id, runner)
+            val_lbl = _nav_label(child_id, runner)
+            lines.append(f"│  NAV {child_lbl} {val_lbl}= {child_val:.6f}  id={child_id}")
+    lines.append(f"│  NAV node  t={t_idx}  nav={nav_val:.6f}")
+    lines.append("└─")
+    logger.debug("\n" + "\n".join(lines))
+
+
+def _log_upward_filter(node: FilterNode, weights: dict, t_idx: int, nav_val: float, runner: Runner) -> None:
+    node_lbl = _node_label(node)
+    mode = node.select["mode"]
+    count = node.select["count"]
+    lines = [f"┌─ type=filter-{mode}{count}  NodeName = {node_lbl}  id={node.id}"]
+    for child in node.children:
+        child_id = child.id
+        child_val = _resolve_child_nav(child_id, node, runner, t_idx)
+        child_lbl = _child_label(child_id, runner)
+        val_lbl = _nav_label(child_id, runner)
+        lines.append(f"│  NAV {child_lbl} {val_lbl}= {child_val:.6f}  id={child_id}")
+    lines.append(f"│  NAV node  t={t_idx}  nav={nav_val:.6f}")
+    lines.append("└─")
+    logger.debug("\n" + "\n".join(lines))
+
+
+def _log_upward_ifelse(node: IfElseNode, weights: dict, t_idx: int, nav_val: float, runner: Runner) -> None:
+    node_lbl = _node_label(node)
+    logic_label = _LOGIC_MODE_LABELS.get(node.logic_mode, node.logic_mode.upper())
+    lines = [f"┌─ type=if_else  logic_mode={logic_label}  NodeName = {node_lbl}  id={node.id}"]
+    for branch in (node.true_branch, node.false_branch):
+        branch_val = _resolve_child_nav(branch.id, node, runner, t_idx)
+        branch_lbl = _child_label(branch.id, runner)
+        val_lbl = _nav_label(branch.id, runner)
+        lines.append(f"│  NAV {branch_lbl} {val_lbl}= {branch_val:.6f}  id={branch.id}")
+    lines.append(f"│  NAV node  t={t_idx}  nav={nav_val:.6f}")
+    lines.append("└─")
+    logger.debug("\n" + "\n".join(lines))
+
+
+def _log_downward_weight(node: WeightNode, t_idx: int, runner: Runner) -> None:
+    node_lbl = _node_label(node)
+    weights = node.temp.get("weights", {})
+    lines = [f"┌─ type=weight-{node.method}  NodeName = {node_lbl}  id={node.id}"]
+    for child_id, weight in weights.items():
+        if child_id == "XCASHX":
+            lines.append(f"│  ← NAV XCASHX nav= 1.000000  w={weight:.6f}  id=XCASHX")
+        else:
+            child_val = _resolve_child_nav(child_id, node, runner, t_idx)
+            child_lbl = _child_label(child_id, runner)
+            val_lbl = _nav_label(child_id, runner)
+            lines.append(f"│  ← NAV {child_lbl} {val_lbl}= {child_val:.6f}  w={weight:.6f}  id={child_id}")
+    nav_val = node.perm["nav_array"][t_idx]
+    lines.append(f"│  NAV node  t={t_idx}  nav={nav_val:.6f}")
+    lines.append("└─")
+    logger.debug("\n" + "\n".join(lines))
+
+
+def _log_downward_filter(node: FilterNode, t_idx: int, runner: Runner) -> None:
+    node_lbl = _node_label(node)
+    mode = node.select["mode"]
+    count = node.select["count"]
+    metric = node.sort_by["function"]
+    lookback = node.sort_by["lookback"]
+    weights = node.temp.get("weights", {})
+    child_metrics = node.temp.get("child_metrics", {})
+    lines = [
+        f"┌─ type=filter-{mode}{count}  NodeName = {node_lbl}  id={node.id}",
+        f"│  Config: metric={metric}  lookback={lookback}",
+    ]
+    for child in node.children:
+        child_id = child.id
+        child_nav = _resolve_child_nav(child_id, node, runner, t_idx)
+        child_lbl = _child_label(child_id, runner)
+        val_lbl = _nav_label(child_id, runner)
+        metric_val = child_metrics.get(child_id, float("nan"))
+        metric_str = f"  metric={metric_val:.6f}"
+        if child_id in weights:
+            w = weights[child_id]
+            lines.append(f"│  ↓ NAV {child_lbl} {val_lbl}= {child_nav:.6f}{metric_str}  w={w:.6f}  id={child_id}")
+        else:
+            lines.append(f"│  ✗ NAV {child_lbl} {val_lbl}= {child_nav:.6f}{metric_str}  id={child_id}  [dropped]")
+    nav_val = node.perm["nav_array"][t_idx]
+    lines.append(f"│  NAV node  t={t_idx}  nav={nav_val:.6f}")
+    lines.append("└─")
+    logger.debug("\n" + "\n".join(lines))
+
+
+def _log_downward_ifelse(node: IfElseNode, t_idx: int, runner: Runner) -> None:
+    node_lbl = _node_label(node)
+    logic_label = _LOGIC_MODE_LABELS.get(node.logic_mode, node.logic_mode.upper())
+    weights = node.temp.get("weights", {})
+    condition_metrics = node.temp.get("condition_metrics", [])
+    lines = [f"┌─ type=if_else  logic_mode={logic_label}  NodeName = {node_lbl}  id={node.id}"]
+    for i, cond in enumerate(node.conditions, 1):
+        lhs_str = _format_side(cond["lhs"])
+        cmp = _COMPARATOR_SYMBOLS.get(cond["comparator"], cond["comparator"])
+        rhs = cond["rhs"]
+        rhs_str = _format_side(rhs) if isinstance(rhs, dict) else str(rhs)
+        metrics = condition_metrics[i - 1] if i - 1 < len(condition_metrics) else {}
+        if metrics:
+            lhs_val = metrics["lhs_value"]
+            rhs_val = metrics["rhs_value"]
+            lhs_part = f"{lhs_str} ({lhs_val:.6f})"
+            rhs_part = f"{rhs_str} ({rhs_val:.6f})" if isinstance(rhs, dict) else f"{rhs_val:.6f}"
+            lines.append(f"│  Condition{i}: {lhs_part} {cmp} {rhs_part}")
+        else:
+            lines.append(f"│  Condition{i}: {lhs_str} {cmp} {rhs_str}")
+    true_id = node.true_branch.id
+    false_id = node.false_branch.id
+    decision = "true" if true_id in weights else ("false" if false_id in weights else "n/a")
+    lines.append(f"│  Decision: {decision}")
+    for branch_key, branch in (("true", node.true_branch), ("false", node.false_branch)):
+        branch_val = _resolve_child_nav(branch.id, node, runner, t_idx)
+        branch_lbl = _child_label(branch.id, runner)
+        val_lbl = _nav_label(branch.id, runner)
+        w = weights.get(branch.id, 0.0)
+        selected = "  [SELECTED]" if branch.id in weights else ""
+        lines.append(
+            f"│   - {branch_key}: NAV {branch_lbl} {val_lbl}= {branch_val:.6f}  w={w:.6f}  id={branch.id}{selected}"
+        )
+    nav_val = node.perm["nav_array"][t_idx]
+    lines.append(f"│  NAV node  t={t_idx}  nav={nav_val:.6f}")
+    lines.append("└─")
+    logger.debug("\n" + "\n".join(lines))
+
+
 class PriceDataError(Exception):
     def __init__(self, message: str) -> None:
         super().__init__(message)
@@ -274,8 +461,13 @@ class Runner:
         assert abs(total - 1.0) < 1e-9, f"Global weights sum to {total}, expected 1.0"
         return acc
 
-    def _upward_pass(self, t_idx: int) -> None:
+    def _upward_pass(self, t_idx: int, date_str: str = "") -> None:
         """Bottom-up NAV update: iterate _upward_order and compute each node's nav_array[t_idx]."""
+        logger.debug(
+            "UPWARD  start  date=%s  t=%d",
+            date_str, t_idx,
+            extra={"keyword": "UPWARD", "text": "start", "date": date_str, "t_idx": t_idx},
+        )
         for node in self._upward_order:
             weights = node.temp.get("weights", {})
             if not weights:
@@ -299,14 +491,12 @@ class Runner:
 
             node.perm["nav_array"][t_idx] = node.perm["nav_array"][t_idx - 1] * (1.0 + weighted_return)
             nav_val = node.perm["nav_array"][t_idx]
-            node_lbl = _node_label(node)
-            node_type_str = _node_type(node)
-            logger.debug(
-                "NAV  node=%s  type=%s  t=%d  nav=%.6f",
-                node_lbl, node_type_str, t_idx, nav_val,
-                extra={"keyword": "NAV", "node": node_lbl, "node_type": node_type_str,
-                       "t_idx": t_idx, "nav": nav_val},
-            )
+            if isinstance(node, WeightNode):
+                _log_upward_weight(node, weights, t_idx, nav_val, self)
+            elif isinstance(node, FilterNode):
+                _log_upward_filter(node, weights, t_idx, nav_val, self)
+            elif isinstance(node, IfElseNode):
+                _log_upward_ifelse(node, weights, t_idx, nav_val, self)
 
     def _update_child_series_views(self, t_idx: int) -> None:
         """Update child_series views for StrategyNode children to include day t_idx."""
@@ -316,7 +506,7 @@ class Runner:
                 if child_id in self._strategy_nodes:
                     child_series[child_id] = self._strategy_nodes[child_id].perm["nav_array"][: t_idx + 1]
 
-    def _downward_pass(self, t_idx: int) -> None:
+    def _downward_pass(self, t_idx: int, date_str: str = "") -> None:
         """Top-down AlgoStack execution: iterate root-first, run each node's algo_stack."""
         for node in reversed(self._upward_order):
             for algo in node.algo_stack:
@@ -334,6 +524,13 @@ class Runner:
 
             self._prev_weights[node.id] = node.temp["weights"]
 
+            if isinstance(node, WeightNode):
+                _log_downward_weight(node, t_idx, self)
+            elif isinstance(node, FilterNode):
+                _log_downward_filter(node, t_idx, self)
+            elif isinstance(node, IfElseNode):
+                _log_downward_ifelse(node, t_idx, self)
+
     def run(self) -> pd.DataFrame:
         """Simulate over _sim_dates. Upward Pass every day (t_idx > 0); Downward Pass on rebalance days."""
         rows: list[dict] = []
@@ -346,11 +543,11 @@ class Runner:
             for node_id, w in self._prev_weights.items():
                 self._strategy_nodes[node_id].temp["weights"] = w
 
-            if t_idx > 0:
-                self._upward_pass(t_idx)
-                self._update_child_series_views(t_idx)
-
             date_str = current_date.strftime("%Y-%m-%d")
+
+            if t_idx > 0:
+                self._upward_pass(t_idx, date_str)
+                self._update_child_series_views(t_idx)
 
             if t_idx == 0:
                 is_rebalance = True
@@ -360,11 +557,11 @@ class Runner:
 
             if is_rebalance:
                 logger.debug(
-                    "REBALANCE  t=%s  t_idx=%d",
+                    "DOWNWARD  t=%s  t_idx=%d",
                     date_str, t_idx,
-                    extra={"keyword": "REBALANCE", "date": date_str, "t_idx": t_idx},
+                    extra={"keyword": "DOWNWARD", "date": date_str, "t_idx": t_idx},
                 )
-                self._downward_pass(t_idx)
+                self._downward_pass(t_idx, date_str)
             else:
                 logger.debug("t=%s  (no rebalance)", date_str)
 
@@ -374,6 +571,7 @@ class Runner:
                 date_str, {k: f"{v:.6f}" for k, v in weights.items()},
                 extra={"keyword": "ALLOC", "date": date_str, "weights": weights},
             )
+            logger.debug("-" * 50)
             if "XCASHX" in weights:
                 xcashx_seen = True
 
