@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -8,6 +10,25 @@ import pandas as pd
 
 from moa_allocations.compiler import compile_strategy
 from moa_allocations.engine import Runner, collect_tickers, compute_max_lookback
+
+_LOG_FMT = "%(asctime)s  %(levelname)s  %(message)s"
+
+
+def _setup_logging(log_path: Path, debug: bool) -> None:
+    """Configure FileHandler (always DEBUG) and StreamHandler on the moa_allocations logger."""
+    root_logger = logging.getLogger("moa_allocations")
+    root_logger.setLevel(logging.DEBUG)
+
+    fh = logging.FileHandler(log_path, encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(_LOG_FMT))
+
+    sh = logging.StreamHandler()
+    sh.setLevel(logging.DEBUG if debug else logging.INFO)
+    sh.setFormatter(logging.Formatter(_LOG_FMT))
+
+    root_logger.addHandler(fh)
+    root_logger.addHandler(sh)
 
 
 def _resolve_lookback_start(anchor_ticker: str, start_date: str, max_lookback: int, db_path: str) -> str:
@@ -45,7 +66,22 @@ def main() -> None:
     parser.add_argument("--strategy", required=True, help="Path to a .moastrat.json DSL file.")
     parser.add_argument("--output", default="output", help="Output directory (default: output/).")
     parser.add_argument("--db", default=r"C:\py\pidb_ib\data\pidb_ib.db", help="Path to the pidb_ib database file.")
+    parser.add_argument("--debug", action="store_true", help="Enable DEBUG-level console output (file always captures DEBUG).")
     args = parser.parse_args()
+
+    # Shared timestamp and stem for file naming
+    now = datetime.now()
+    stem = Path(Path(args.strategy).stem).stem
+    ts = now.strftime("%Y%m%d_%H%M")
+
+    # Set up logging — logs/ dir created here, shared timestamp with CSV
+    logs_dir = Path("logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / f"{ts}_{stem}_log.txt"
+    _setup_logging(log_path, args.debug)
+
+    logger = logging.getLogger("moa_allocations")
+    t_start = time.monotonic()
 
     # Compile
     root = compile_strategy(args.strategy)
@@ -57,6 +93,11 @@ def main() -> None:
     end_date_iso = root.settings.end_date.isoformat()
     start_date_iso = root.settings.start_date.isoformat()
 
+    logger.info(
+        "Strategy loaded: %s | tickers: %d | %s -> %s",
+        args.strategy, len(tickers), start_date_iso, end_date_iso,
+    )
+
     # Resolve precise fetch start: exactly max_lookback trading days before start_date
     if max_lookback > 0:
         fetch_start_iso = _resolve_lookback_start(tickers[0], start_date_iso, max_lookback, args.db)
@@ -66,20 +107,29 @@ def main() -> None:
     # Fetch prices
     price_data = _default_price_fetcher(tickers, fetch_start_iso, end_date_iso, args.db)
 
+    logger.info(
+        "Simulation starting | start=%s  end=%s  rebalance=%s",
+        start_date_iso, end_date_iso, root.settings.rebalance_frequency,
+    )
+
     # Run engine
     runner = Runner(root, price_data)
     df = runner.run()
 
     # Build output filename: YYYYMMDD_HHMM_<stem>.csv
-    now = datetime.now()
-    stem = Path(Path(args.strategy).stem).stem
-    filename = f"{now.strftime('%Y%m%d_%H%M')}_{stem}.csv"
+    filename = f"{ts}_{stem}.csv"
 
     # Write output
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / filename
     df.to_csv(output_path, index=False)
+
+    elapsed = time.monotonic() - t_start
+    logger.info(
+        "Run complete | output=%s  log=%s  elapsed=%.2fs",
+        output_path, log_path, elapsed,
+    )
 
     print(f"Written: {output_path}")
 

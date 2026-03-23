@@ -1,9 +1,23 @@
 from __future__ import annotations
 
 import collections
+import logging
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+def _node_label(node) -> str:
+    return node.name or node.id
+
+
+_NODE_TYPE_MAP = {"IfElseNode": "if_else", "WeightNode": "weight", "FilterNode": "filter"}
+
+
+def _node_type(node) -> str:
+    return _NODE_TYPE_MAP.get(type(node).__name__, type(node).__name__)
 
 from moa_allocations.engine.algos import (
     SelectAll,
@@ -284,6 +298,15 @@ class Runner:
                 weighted_return += weight * child_return
 
             node.perm["nav_array"][t_idx] = node.perm["nav_array"][t_idx - 1] * (1.0 + weighted_return)
+            nav_val = node.perm["nav_array"][t_idx]
+            node_lbl = _node_label(node)
+            node_type_str = _node_type(node)
+            logger.debug(
+                "NAV  node=%s  type=%s  t=%d  nav=%.6f",
+                node_lbl, node_type_str, t_idx, nav_val,
+                extra={"keyword": "NAV", "node": node_lbl, "node_type": node_type_str,
+                       "t_idx": t_idx, "nav": nav_val},
+            )
 
     def _update_child_series_views(self, t_idx: int) -> None:
         """Update child_series views for StrategyNode children to include day t_idx."""
@@ -327,6 +350,8 @@ class Runner:
                 self._upward_pass(t_idx)
                 self._update_child_series_views(t_idx)
 
+            date_str = current_date.strftime("%Y-%m-%d")
+
             if t_idx == 0:
                 is_rebalance = True
             else:
@@ -334,10 +359,21 @@ class Runner:
                 is_rebalance = _is_rebalance_day(current_date, prev_date, self.settings.rebalance_frequency)
 
             if is_rebalance:
+                logger.debug(
+                    "REBALANCE  t=%s  t_idx=%d",
+                    date_str, t_idx,
+                    extra={"keyword": "REBALANCE", "date": date_str, "t_idx": t_idx},
+                )
                 self._downward_pass(t_idx)
+            else:
+                logger.debug("t=%s  (no rebalance)", date_str)
 
-            date_str = current_date.strftime("%Y-%m-%d")
             weights = self._flatten_weights()
+            logger.debug(
+                "ALLOC  t=%s  weights=%s",
+                date_str, {k: f"{v:.6f}" for k, v in weights.items()},
+                extra={"keyword": "ALLOC", "date": date_str, "weights": weights},
+            )
             if "XCASHX" in weights:
                 xcashx_seen = True
 

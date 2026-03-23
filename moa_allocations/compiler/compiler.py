@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import date
 from importlib import resources
 
 import jsonschema
+
+logger = logging.getLogger(__name__)
 
 from moa_allocations.engine.node import AssetNode, FilterNode, IfElseNode, StrategyNode, WeightNode
 from moa_allocations.engine.strategy import RootNode, Settings
@@ -292,4 +295,12 @@ def compile_strategy(path: str) -> RootNode:
 
     # Step 5: assemble and return the RootNode
     settings = _build_settings(doc["settings"])
-    return RootNode(settings=settings, root=root, dsl_version=version_dsl)
+    root_node = RootNode(settings=settings, root=root, dsl_version=version_dsl)
+
+    root_label = root.name or root.id
+    logger.debug(
+        "COMPILE  strategy=%s  root=%s",
+        path, root_label,
+        extra={"keyword": "COMPILE", "strategy_path": path, "root_node": root_label},
+    )
+    return root_node

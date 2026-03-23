@@ -1,0 +1,2 @@
+- current raw price is used. Needs adjusted
+- currently: start and end date need to be a trading day. Fix: match next available date where data is available 

@@ -1,0 +1,276 @@
+## ADDED Requirements
+
+### Requirement: Module-level loggers via `__name__`
+
+Each module that emits log events SHALL create a module-level logger using `logging.getLogger(__name__)`. The following modules MUST have a logger:
+
+- `moa_allocations.compiler.compiler`
+- `moa_allocations.engine.runner`
+- `moa_allocations.engine.algos.selection`
+- `moa_allocations.engine.algos.weighting`
+
+`main.py` (the CLI entry point) SHALL configure handlers on the root `moa_allocations` logger. Library modules MUST NOT configure handlers themselves.
+
+#### Scenario: Logger hierarchy matches module structure
+- **WHEN** the engine runs a strategy
+- **THEN** every log record's `name` attribute corresponds to the emitting module's `__name__` (e.g., `moa_allocations.engine.algos.selection`)
+
+#### Scenario: Library modules do not configure handlers
+- **WHEN** `Runner` or any algo module is imported without running `main.py`
+- **THEN** no handlers are attached and no output is produced (NullHandler behaviour)
+
+---
+
+### Requirement: CLI `--debug` flag
+
+`main.py` SHALL accept a `--debug` boolean flag via argparse. The flag defaults to `False`.
+
+- Without `--debug`: console StreamHandler level is INFO.
+- With `--debug`: console StreamHandler level is DEBUG.
+
+The flag MUST NOT affect the FileHandler level (always DEBUG).
+
+#### Scenario: Default console level is INFO
+- **WHEN** the CLI is invoked without `--debug`
+- **THEN** the StreamHandler emits only INFO-level and above messages to stderr
+
+#### Scenario: `--debug` enables console DEBUG
+- **WHEN** the CLI is invoked with `--debug`
+- **THEN** the StreamHandler emits DEBUG-level and above messages to stderr
+
+---
+
+### Requirement: Two handlers — FileHandler and StreamHandler
+
+`main.py` SHALL configure exactly two handlers on the `moa_allocations` logger:
+
+1. **FileHandler** — writes to the log file path; level is always DEBUG.
+2. **StreamHandler** — writes to stderr; level is INFO by default, DEBUG with `--debug`.
+
+Both handlers SHALL use the same format string. The format MUST include at minimum: timestamp, logger name, level, and message.
+
+#### Scenario: FileHandler captures all DEBUG output
+- **WHEN** a strategy run completes
+- **THEN** the log file contains every DEBUG, INFO, WARNING, and ERROR message emitted during the run
+
+#### Scenario: StreamHandler respects level setting
+- **WHEN** a strategy run completes without `--debug`
+- **THEN** the console output contains only INFO-level and above messages
+
+---
+
+### Requirement: Log file naming and location
+
+Each run SHALL produce a log file at:
+
+```
+logs/<YYYYMMDD_HHMM>_<strategy-stem>_log.txt
+```
+
+Where:
+- `<YYYYMMDD_HHMM>` is the same timestamp used for the output CSV filename.
+- `<strategy-stem>` is the strategy file's stem (without `.moastrat.json`).
+- The `logs/` directory is created at runtime if it does not exist.
+- The `logs/` directory SHALL be added to `.gitignore`.
+
+#### Scenario: Log file created alongside CSV output
+- **WHEN** a strategy run completes with strategy file `strategies/spy_sma200.moastrat.json`
+- **THEN** a file exists at `logs/<timestamp>_spy_sma200_log.txt` containing the full DEBUG trace
+
+#### Scenario: `logs/` directory created automatically
+- **WHEN** the `logs/` directory does not exist before a run
+- **THEN** `main.py` creates it before writing the log file
+
+#### Scenario: Timestamp shared with CSV
+- **WHEN** a run produces CSV at `output/20240323_1430_spy_sma200.csv`
+- **THEN** the log file is `logs/20240323_1430_spy_sma200_log.txt` (same timestamp and stem)
+
+---
+
+### Requirement: COMPILE keyword event
+
+`compiler.py` SHALL emit a DEBUG log with keyword `COMPILE` after successfully building the strategy tree.
+
+The message MUST include: the strategy file path and the root node label (`name or id`).
+
+The call MUST include an `extra` dict with keys: `keyword`, `strategy_path`, `root_node`.
+
+#### Scenario: Strategy compilation logged
+- **WHEN** `compile_strategy("strategies/spy_sma200.moastrat.json")` succeeds
+- **THEN** a DEBUG record is emitted starting with `COMPILE` containing the file path and root node label
+
+---
+
+### Requirement: REBALANCE keyword event
+
+`runner.py` SHALL emit a DEBUG log with keyword `REBALANCE` at the start of each rebalance day, and a single-line log `t=<YYYY-MM-DD>  (no rebalance)` on non-rebalance days (after `t_idx == 0`).
+
+The rebalance message MUST include: the date (`YYYY-MM-DD`) and `t_idx`.
+
+The call MUST include an `extra` dict with keys: `keyword`, `date`, `t_idx`.
+
+#### Scenario: Rebalance day logged
+- **WHEN** the simulation reaches a rebalance day (e.g., `t_idx=0`, `date=2021-01-04`)
+- **THEN** a DEBUG record is emitted starting with `REBALANCE` containing the date and t_idx
+
+#### Scenario: Non-rebalance day logged
+- **WHEN** the simulation reaches a non-rebalance day (e.g., `date=2021-01-05`)
+- **THEN** a single DEBUG record is emitted: `t=2021-01-05  (no rebalance)`
+
+---
+
+### Requirement: METRIC keyword event
+
+`selection.py` SHALL emit a DEBUG log with keyword `METRIC` for every metric computation performed during `_rank_and_select()` and `_evaluate_condition_at_day()`.
+
+The message MUST include: node label (`name or id`), ticker or child label, metric function name, lookback value, and computed value (6 decimal places).
+
+The call MUST include an `extra` dict with keys: `keyword`, `node`, `ticker`, `fn`, `lookback`, `value`.
+
+#### Scenario: Metric computed during ranking
+- **WHEN** `_rank_and_select()` computes `sma_price` with lookback 200 for child `SPY` under node `"momentum_filter"`
+- **THEN** a DEBUG record is emitted: `METRIC  node=momentum_filter  ticker=SPY  fn=sma_price  lookback=200  value=<computed>` with matching `extra` dict
+
+#### Scenario: Metric computed during condition evaluation
+- **WHEN** `_evaluate_condition_at_day()` computes the LHS metric (e.g., `rsi`, lookback 14) for asset `SPY`
+- **THEN** a DEBUG record is emitted with keyword `METRIC` containing the node, ticker, function, lookback, and value
+
+---
+
+### Requirement: SELECT keyword event
+
+`selection.py` SHALL emit a DEBUG log with keyword `SELECT` after `_rank_and_select()` determines the selected and dropped children.
+
+The message MUST include: node label, list of selected child labels, list of dropped child labels.
+
+The call MUST include an `extra` dict with keys: `keyword`, `node`, `selected`, `dropped`.
+
+#### Scenario: Top-N selection result logged
+- **WHEN** `SelectTopN(2, "cumulative_return", 20)` runs on a node with 4 children and selects the top 2
+- **THEN** a DEBUG record is emitted starting with `SELECT` listing the 2 selected and 2 dropped children
+
+#### Scenario: All children selected
+- **WHEN** `SelectAll()` runs on a node
+- **THEN** a DEBUG record is emitted with `SELECT` showing all children as selected and none dropped
+
+---
+
+### Requirement: CONDITION keyword event
+
+`selection.py` SHALL emit a DEBUG log with keyword `CONDITION` for each condition evaluation in `_evaluate_condition_at_day()`.
+
+The message MUST include: node label, LHS value, comparator, RHS value, and boolean result.
+
+When `duration > 1`, the condition is evaluated for each sub-day. Each sub-day evaluation SHALL emit its own `CONDITION` log line.
+
+The call MUST include an `extra` dict with keys: `keyword`, `node`, `lhs_value`, `comparator`, `rhs_value`, `result`, and `day_offset` (0-based offset within the duration window).
+
+#### Scenario: Simple condition (duration=1)
+- **WHEN** a condition `rsi > 30` evaluates with LHS=45.2 and RHS=30
+- **THEN** a single DEBUG record is emitted: `CONDITION  node=<label>  lhs=45.200000  op=>  rhs=30.000000  result=True  day=0`
+
+#### Scenario: Duration condition (duration > 1)
+- **WHEN** a condition with `duration=3` evaluates across 3 sub-days
+- **THEN** 3 separate DEBUG records are emitted, each with `day=0`, `day=1`, `day=2` respectively, each showing that sub-day's LHS value, RHS value, and result
+
+---
+
+### Requirement: WEIGHT keyword event
+
+`weighting.py` SHALL emit a DEBUG log with keyword `WEIGHT` after computing per-child weights.
+
+The message MUST include: node label, weighting method name, and the weight map (child label → weight).
+
+The call MUST include an `extra` dict with keys: `keyword`, `node`, `method`, `weights`.
+
+This applies to `WeightEqually`, `WeightSpecified`, and `WeightInvVol`.
+
+#### Scenario: Equal weighting logged
+- **WHEN** `WeightEqually()` assigns weights to 3 selected children
+- **THEN** a DEBUG record is emitted: `WEIGHT  node=<label>  method=equal  weights={child1: 0.333333, child2: 0.333333, child3: 0.333333}`
+
+#### Scenario: Inverse volatility weighting logged
+- **WHEN** `WeightInvVol(60)` computes weights
+- **THEN** a DEBUG record is emitted with `method=inverse_volatility` and the per-child weight map
+
+---
+
+### Requirement: NAV keyword event
+
+`runner.py` SHALL emit a DEBUG log with keyword `NAV` after updating each node's `nav_array[t_idx]` in `_upward_pass()`.
+
+The message MUST include: node label, `t_idx`, and the new NAV value (6 decimal places).
+
+The call MUST include an `extra` dict with keys: `keyword`, `node`, `t_idx`, `nav`.
+
+#### Scenario: NAV updated for strategy node
+- **WHEN** the upward pass computes `nav_array[5] = 1.023456` for node `"us_equities"`
+- **THEN** a DEBUG record is emitted: `NAV  node=us_equities  t=5  nav=1.023456`
+
+---
+
+### Requirement: ALLOC keyword event
+
+`runner.py` SHALL emit a DEBUG log with keyword `ALLOC` after `_flatten_weights()` produces the global weight vector for the day.
+
+The message MUST include: the date (`YYYY-MM-DD`) and the full ticker → weight map.
+
+The call MUST include an `extra` dict with keys: `keyword`, `date`, `weights`.
+
+#### Scenario: Daily allocation logged
+- **WHEN** `_flatten_weights()` returns `{"SPY": 0.6, "BND": 0.4}` on date `2021-03-15`
+- **THEN** a DEBUG record is emitted: `ALLOC  t=2021-03-15  weights={'SPY': 0.600000, 'BND': 0.400000}`
+
+---
+
+### Requirement: `extra` dict convention on all DEBUG calls
+
+Every DEBUG-level log call in the instrumented modules MUST include an `extra` dict parameter containing the same data as the formatted message string.
+
+Every `extra` dict MUST include a `keyword` key matching the message's keyword anchor (e.g., `"METRIC"`, `"SELECT"`).
+
+The `extra` dict fields are ignored by the text formatter but SHALL be available on the `LogRecord` for future structured formatters.
+
+#### Scenario: Extra dict present on METRIC event
+- **WHEN** a METRIC log is emitted
+- **THEN** the `LogRecord` has attributes `keyword="METRIC"`, `node=<str>`, `ticker=<str>`, `fn=<str>`, `lookback=<int>`, `value=<float>`
+
+#### Scenario: Extra dict does not affect text output
+- **WHEN** the text formatter renders a DEBUG log with `extra={"keyword": "METRIC", ...}`
+- **THEN** the output contains only the formatted message, not the raw extra fields
+
+---
+
+### Requirement: INFO-level events in `main.py`
+
+`main.py` SHALL emit INFO-level logs for run lifecycle events:
+
+1. After compilation: strategy file path, number of tickers found, date range
+2. Before simulation: "Simulation starting" with start date, end date, rebalance frequency
+3. After simulation: output CSV path, log file path, elapsed time
+
+These messages do NOT use keyword anchors (keyword anchors are for DEBUG-level algo tracing only).
+
+#### Scenario: Compilation info logged
+- **WHEN** a strategy is compiled and tickers are collected
+- **THEN** an INFO record is emitted containing the strategy path, ticker count, and date range
+
+#### Scenario: Run completion info logged
+- **WHEN** a run completes
+- **THEN** an INFO record is emitted containing the output path, log path, and elapsed time
+
+---
+
+### Requirement: Node label helper
+
+A utility function or pattern SHALL exist to produce a human-readable label for a node: `node.name or node.id`.
+
+All log messages that reference a node MUST use this label pattern. This ensures logs are readable when names exist and unambiguous when they don't.
+
+#### Scenario: Named node uses name
+- **WHEN** a node has `name="us_equities"` and `id="abc-123"`
+- **THEN** log messages referencing this node use `"us_equities"`
+
+#### Scenario: Unnamed node falls back to id
+- **WHEN** a node has `name=None` and `id="abc-123"`
+- **THEN** log messages referencing this node use `"abc-123"`
