@@ -13,15 +13,7 @@ strategies/
   momentum.moastrat.json
 ```
 
-### 2. Set the price data source
-
-`moa_allocator` fetches historical prices from a `pidb_ib` database. Set the path before running:
-
-```bash
-export PIDB_IB_DB_PATH=/path/to/pidb_ib.db
-```
-
-### 3. Run
+### 2. Run
 
 ```bash
 uv run python main.py --strategy strategies/momentum.moastrat.json
@@ -31,6 +23,12 @@ The output CSV is written to `output/` by default:
 
 ```
 output/20260322_1435_momentum.csv
+```
+
+`moa_allocator` fetches prices from a `pidb_ib` database. The default path is `C:\py\pidb_ib\data\pidb_ib.db`. Override it with `--db`:
+
+```bash
+uv run python main.py --strategy strategies/momentum.moastrat.json --db "D:\other\pidb_ib.db"
 ```
 
 Use `--output` to write elsewhere:

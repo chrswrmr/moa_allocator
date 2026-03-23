@@ -75,7 +75,7 @@
   "definitions": {
     "time_offset": {
       "type": "string",
-      "pattern": "^[0-9]+[dwm]$"
+      "pattern": "^[0-9]+d$"
     },
     "node": {
       "type": "object",

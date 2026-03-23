@@ -19,7 +19,11 @@
       "Bash(find /c/py/moa_allocator -name *.py -path *compiler* -type f)",
       "Bash(uv add:*)",
       "Bash(grep -n \"inverse_volatility\\\\|lookback\\\\|method_params\" /c/py/moa_allocator/moa_allocations/compiler/*.py)",
-      "Bash(python -c \"from pathlib import Path; p = Path\\(''strategies/momentum.moastrat.json''\\); print\\(Path\\(p.stem\\).stem\\)\")"
+      "Bash(python -c \"from pathlib import Path; p = Path\\(''strategies/momentum.moastrat.json''\\); print\\(Path\\(p.stem\\).stem\\)\")",
+      "Bash($env:PIDB_IB_DB_PATH = \"C:\\\\py\\\\pidb_ib\\\\data\\\\pidb_ib.db\")",
+      "Bash(export PIDB_IB_DB_PATH=\"C:\\\\py\\\\pidb_ib\\\\data\\\\pidb_ib.db\")",
+      "Bash(grep -h \"lookback\\\\|duration\" c:pymoa_allocatorstrategies*.moastrat.json)"
     ]
-  }
+  },
+  "autoAttachContext": false
 }

@@ -13,18 +13,18 @@ from moa_allocations.exceptions import DSLValidationError
 
 _DSL_VERSION = "1.0.0"
 
-_LOOKBACK_MULTIPLIERS = {"d": 1, "w": 5, "m": 21}
-_LOOKBACK_RE = re.compile(r"^(\d+)([dwm])$")
+_LOOKBACK_MULTIPLIERS = {"d": 1}
+_LOOKBACK_RE = re.compile(r"^(\d+)(d)$")
 
 
 def _convert_lookback(time_offset: str) -> int:
-    """Convert a time_offset string (e.g. '200d', '4w', '3m') to integer trading days."""
+    """Convert a time_offset string (e.g. '200d') to integer trading days."""
     m = _LOOKBACK_RE.match(time_offset)
     if not m:
         raise DSLValidationError(
             node_id="root",
             node_name="",
-            message=f"invalid time_offset format '{time_offset}'; expected pattern like '200d', '4w', '3m'",
+            message=f"invalid time_offset format '{time_offset}'; expected pattern like '200d'",
         )
     amount, unit = int(m.group(1)), m.group(2)
     return amount * _LOOKBACK_MULTIPLIERS[unit]
@@ -78,6 +78,8 @@ def _build_node(raw: dict) -> StrategyNode | AssetNode:
         method_params = dict(raw.get("method_params", {}))
         if "lookback" in method_params:
             method_params["lookback"] = _convert_lookback(method_params["lookback"])
+        if "custom_weights" in method_params:
+            method_params["weights"] = method_params.pop("custom_weights")
         return WeightNode(
             id=node_id,
             method=raw["method"],

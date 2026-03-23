@@ -53,14 +53,15 @@ class TestConvertLookback:
     def test_days_small(self):
         assert _convert_lookback("1d") == 1
 
-    def test_weeks(self):
-        assert _convert_lookback("4w") == 20
+    def test_week_suffix_rejected(self):
+        with pytest.raises(DSLValidationError) as exc_info:
+            _convert_lookback("4w")
+        assert "invalid time_offset" in exc_info.value.message
 
-    def test_months(self):
-        assert _convert_lookback("3m") == 63
-
-    def test_months_large(self):
-        assert _convert_lookback("12m") == 252
+    def test_month_suffix_rejected(self):
+        with pytest.raises(DSLValidationError) as exc_info:
+            _convert_lookback("3m")
+        assert "invalid time_offset" in exc_info.value.message
 
     def test_invalid_format_raises(self):
         with pytest.raises(DSLValidationError) as exc_info:
@@ -258,7 +259,7 @@ class TestLookbackConversionEndToEnd:
             "conditions": [{
                 "lhs": {"asset": "SPY", "function": "sma_price", "lookback": "200d"},
                 "comparator": "greater_than",
-                "rhs": {"asset": "SPY", "function": "sma_price", "lookback": "4w"},
+                "rhs": {"asset": "SPY", "function": "sma_price", "lookback": "20d"},
             }],
             "true_branch": {"id": "22222222-2222-2222-2222-222222222222", "type": "asset", "ticker": "SPY"},
             "false_branch": {"id": "33333333-3333-3333-3333-333333333333", "type": "asset", "ticker": "AGG"},
@@ -277,7 +278,7 @@ class TestLookbackConversionEndToEnd:
                 "lhs": {"asset": "SPY", "function": "current_price"},
                 "comparator": "greater_than",
                 "rhs": 100,
-                "duration": "3m",
+                "duration": "63d",
             }],
             "true_branch": {"id": "22222222-2222-2222-2222-222222222222", "type": "asset", "ticker": "SPY"},
             "false_branch": {"id": "33333333-3333-3333-3333-333333333333", "type": "asset", "ticker": "AGG"},
@@ -320,7 +321,7 @@ class TestLookbackConversionEndToEnd:
             "id": "11111111-1111-1111-1111-111111111111",
             "type": "weight",
             "method": "inverse_volatility",
-            "method_params": {"lookback": "6m"},
+            "method_params": {"lookback": "126d"},
             "children": [
                 {"id": "aaaaaaaa-0000-0000-0000-000000000000", "type": "asset", "ticker": "SPY"},
             ],

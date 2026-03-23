@@ -2,9 +2,11 @@
 
 ### Requirement: Public run function signature
 
-The package SHALL expose a single public function `run(strategy_path: str, price_fetcher: PriceFetcher | None = None) -> pd.DataFrame` in `moa_allocations/__init__.py`.
+The package SHALL expose a single public function `run(strategy_path: str, price_fetcher: PriceFetcher | None = None, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame` in `moa_allocations/__init__.py`.
 
 `PriceFetcher` is defined as `Callable[[list[str], str, str], pd.DataFrame]` where the arguments are `(tickers, start_date, end_date)` — tickers as uppercase strings, dates as ISO-8601 date strings (e.g. `"2024-01-15"`).
+
+`db_path` is passed to the default fetcher when `price_fetcher` is `None`. It is ignored when a custom `price_fetcher` is provided.
 
 #### Scenario: Minimal invocation with default fetcher
 - **WHEN** caller invokes `run("path/to/strategy.moastrat.json")` without a `price_fetcher` argument
@@ -65,19 +67,15 @@ This ensures the fetched window always covers enough trading days for the engine
 
 ### Requirement: Default price fetcher wraps pidb_ib
 
-The default price fetcher SHALL be a private function `_default_price_fetcher(tickers, start_date, end_date)` that:
-1. Reads `PIDB_IB_DB_PATH` from the environment
+The default price fetcher SHALL be a private function `_default_price_fetcher(tickers, start_date, end_date, db_path)` that:
+1. Accepts `db_path` directly as a parameter (no env var lookup)
 2. Instantiates `PidbReader(db_path)`
 3. Calls `reader.get_matrix(symbols=tickers, columns=["close_d"], start=start_date, end=end_date)`
 4. Converts the Polars DataFrame result to a pandas DataFrame matching the engine's price_data contract
 
 #### Scenario: Successful pidb_ib fetch
-- **WHEN** `PIDB_IB_DB_PATH` is set and pidb_ib returns valid data for the requested tickers and date range
+- **WHEN** `db_path` points to a valid pidb_ib database and it contains data for the requested tickers and date range
 - **THEN** the default fetcher SHALL return a `pd.DataFrame` with `DatetimeIndex`, uppercase ticker columns, and `float64` values
-
-#### Scenario: Missing database path
-- **WHEN** `PIDB_IB_DB_PATH` environment variable is not set
-- **THEN** the default fetcher SHALL raise `ValueError` with a message indicating the missing environment variable
 
 ### Requirement: Polars-to-pandas conversion in default fetcher
 

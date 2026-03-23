@@ -1,0 +1,42 @@
+{
+  "id": "11111111-2222-3333-4444-555555555555",
+  "version-dsl": "1.0.0",
+  "settings": {
+    "id": "a2b3c4d5-e6f7-8901-2345-67890abcdef1",
+    "name": "SPY SMA 200 Trend",
+    "starting_cash": 100000,
+    "start_date": "2021-02-24",
+    "end_date": "2025-12-31",
+    "rebalance_frequency": "daily"
+  },
+  "root_node": {
+    "id": "root-node-id",
+    "name": "SPY Trend Filter",
+    "type": "if_else",
+    "logic_mode": "all",
+    "conditions": [
+      {
+        "lhs": {
+          "asset": "SPY",
+          "function": "current_price"
+        },
+        "comparator": "greater_than",
+        "rhs": {
+          "asset": "SPY",
+          "function": "sma_price",
+          "lookback": "200d"
+        }
+      }
+    ],
+    "true_branch": {
+      "id": "spy-id",
+      "type": "asset",
+      "ticker": "SPY"
+    },
+    "false_branch": {
+      "id": "shv-cash-id",
+      "type": "asset",
+      "ticker": "SHV"
+    }
+  }
+}

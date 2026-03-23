@@ -1,0 +1,17 @@
+{
+  "id": "spy-only-2018",
+  "version-dsl": "1.0.0",
+  "settings": {
+    "id": "spy-2018-settings",
+    "name": "SPY Only 2018-2025",
+    "starting_cash": 100000,
+    "start_date": "2018-02-24",
+    "end_date": "2025-12-31",
+    "rebalance_frequency": "daily"
+  },
+  "root_node": {
+    "id": "spy-root",
+    "type": "asset",
+    "ticker": "SPY"
+  }
+}

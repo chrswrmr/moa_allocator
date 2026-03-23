@@ -42,7 +42,9 @@ A sequencing challenge exists: `run()` must know the required tickers and max lo
 - Args: `(tickers, start_date, end_date)` — tickers as uppercase strings, dates as ISO strings
 - Returns: `pd.DataFrame` matching the engine's price_data contract (DatetimeIndex, uppercase ticker columns, float64 values, no NaNs)
 
-**Default fetcher:** A private `_default_price_fetcher()` function that wraps `PidbReader.get_matrix()`. It reads `PIDB_IB_DB_PATH` from the environment, calls `get_matrix()`, and runs the Polars-to-pandas conversion. All pidb_ib knowledge is confined to this one function.
+**Default fetcher:** A private `_default_price_fetcher(tickers, start_date, end_date, db_path)` function that wraps `PidbReader.get_matrix()`. It accepts `db_path` directly (no env var), calls `get_matrix()`, and runs the Polars-to-pandas conversion. All pidb_ib knowledge is confined to this one function.
+
+`run()` exposes `db_path` as an optional parameter with a sensible default (`C:\py\pidb_ib\data\pidb_ib.db`) and forwards it to `_default_price_fetcher`. Custom `price_fetcher` callables ignore `db_path` entirely.
 
 **Alternatives considered:**
 - *Hard-code pidb_ib in `run()` with no injection point* — works today but forces callers to fork `run()` to test alternative data. Costs almost nothing to add the parameter now.
@@ -69,7 +71,7 @@ To convert: multiply trading days by `7/5` (5 trading days per 7 calendar days) 
 
 ### D5: Error propagation — no wrapping
 
-**Decision:** Let exceptions from `compile_strategy()` (`DSLValidationError`), `Runner` (`PriceDataError`), and the price fetcher propagate directly. `run()` raises no new exceptions of its own. The default fetcher raises `ValueError` when `PIDB_IB_DB_PATH` is unset. No custom wrapper exception — callers can catch specific errors from each layer.
+**Decision:** Let exceptions from `compile_strategy()` (`DSLValidationError`), `Runner` (`PriceDataError`), and the price fetcher propagate directly. `run()` raises no new exceptions of its own. No custom wrapper exception — callers can catch specific errors from each layer.
 
 ## Risks / Trade-offs
 

@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import json
-import math
 import os
-from datetime import date, timedelta
+from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -105,10 +104,12 @@ def test_run_end_to_end_custom_fetcher(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 4.2 Lookback date calculation: max_lookback=200 → 290 calendar days
+# 4.2 Custom fetcher receives settings.start_date (no lookback adjustment)
 # ---------------------------------------------------------------------------
 
-def test_lookback_date_calculation_200d(tmp_path):
+def test_custom_fetcher_receives_strategy_start_date(tmp_path):
+    """With a custom fetcher, run() passes settings.start_date as-is.
+    The custom fetcher is responsible for providing enough lookback history."""
     path = _write_strategy(tmp_path, _INVVOL_DOC)
 
     fetcher_calls = []
@@ -121,19 +122,14 @@ def test_lookback_date_calculation_200d(tmp_path):
 
     assert len(fetcher_calls) == 1
     _, actual_start, _ = fetcher_calls[0]
-
-    expected_calendar_days = math.ceil(200 * 7 / 5) + 10  # 290
-    strategy_start = date(2024, 1, 2)
-    expected_start = (strategy_start - timedelta(days=expected_calendar_days)).isoformat()
-
-    assert actual_start == expected_start
+    assert actual_start == date(2024, 1, 2).isoformat()
 
 
 # ---------------------------------------------------------------------------
-# 4.3 Lookback date calculation: max_lookback=0 → 10 calendar days
+# 4.3 Custom fetcher with no lookback also receives settings.start_date
 # ---------------------------------------------------------------------------
 
-def test_lookback_date_calculation_zero(tmp_path):
+def test_custom_fetcher_no_lookback_receives_strategy_start_date(tmp_path):
     path = _write_strategy(tmp_path, _SIMPLE_DOC)  # equal weight, no lookback
 
     fetcher_calls = []
@@ -145,9 +141,7 @@ def test_lookback_date_calculation_zero(tmp_path):
     run(path, price_fetcher=mock_fetcher)
 
     _, actual_start, _ = fetcher_calls[0]
-    strategy_start = date(2024, 1, 2)
-    expected_start = (strategy_start - timedelta(days=10)).isoformat()
-    assert actual_start == expected_start
+    assert actual_start == date(2024, 1, 2).isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -217,12 +211,16 @@ def test_price_data_error_propagates(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 4.8 Default fetcher raises ValueError when PIDB_IB_DB_PATH is unset
+# 4.8 db_path is ignored when a custom price_fetcher is provided
 # ---------------------------------------------------------------------------
 
-def test_default_fetcher_raises_when_no_db_path(tmp_path, monkeypatch):
+def test_db_path_ignored_when_custom_fetcher_provided(tmp_path):
+    """db_path has no effect when a custom price_fetcher is supplied."""
     path = _write_strategy(tmp_path, _SIMPLE_DOC)
-    monkeypatch.delenv("PIDB_IB_DB_PATH", raising=False)
 
-    with pytest.raises(ValueError, match="PIDB_IB_DB_PATH"):
-        run(path)
+    def custom_fetcher(tickers, start, end):
+        return _make_price_data(tickers, start, end)
+
+    # A nonsense db_path should not cause any error when a custom fetcher is used
+    result = run(path, price_fetcher=custom_fetcher, db_path="nonexistent.db")
+    assert isinstance(result, pd.DataFrame)

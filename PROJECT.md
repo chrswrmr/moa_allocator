@@ -30,6 +30,25 @@
 | `algos` | Catalogue of built-in Selection and Weighting Algos | [spec](openspec/changes/Starting_points/algos.spec.md) |
 | `metrics` | Metric function implementations (SMA, RSI, cumulative return, etc.) | [spec](openspec/changes/Starting_points/metrics.spec.md) |
 
+## Running
+
+```bash
+# Run a strategy (uses default db path: C:\py\pidb_ib\data\pidb_ib.db)
+uv run python main.py --strategy strategies/first.moastrat.json
+
+# Override the database path
+uv run python main.py --strategy strategies/first.moastrat.json --db "D:\other\pidb_ib.db"
+
+# Override the output directory (default: output/)
+uv run python main.py --strategy strategies/first.moastrat.json --output my_output/
+```
+
+Output is written to `output/<YYYYMMDD_HHMM>_<strategy-stem>.csv`.
+
+> **Note:** `start_date` in the strategy file must be a real trading day, and there must be at least 200 trading days of price history available before it in the database.
+
+---
+
 ## Agent Entry Point
 
 Load `claude/rules/` before any task. Then load the relevant spec from the Module Index above.

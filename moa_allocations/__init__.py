@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import math
-import os
-from datetime import timedelta
 from typing import Callable
 
 import pandas as pd
@@ -12,16 +9,27 @@ from moa_allocations.engine import Runner, collect_tickers, compute_max_lookback
 
 PriceFetcher = Callable[[list[str], str, str], pd.DataFrame]
 
+DEFAULT_DB_PATH = r"C:\py\pidb_ib\data\pidb_ib.db"
 
-def _default_price_fetcher(tickers: list[str], start_date: str, end_date: str) -> pd.DataFrame:
-    from access import PidbReader  # lazy import — pidb_ib only needed for default path
 
-    db_path = os.environ.get("PIDB_IB_DB_PATH")
-    if not db_path:
+def _resolve_lookback_start(anchor_ticker: str, start_date: str, max_lookback: int, db_path: str) -> str:
+    """Return the ISO date that is exactly max_lookback trading days before start_date."""
+    from access import PidbReader
+
+    reader = PidbReader(db_path)
+    pl_df = reader.get_matrix(symbols=[anchor_ticker], columns=["close_d"], end=start_date)
+    dates = pl_df.sort("date")["date"].to_list()
+    pos = len(dates) - 1  # index of start_date
+    if pos < max_lookback:
         raise ValueError(
-            "PIDB_IB_DB_PATH environment variable is not set. "
-            "Set it to the path of the pidb_ib database file."
+            f"Not enough history for {anchor_ticker}: need {max_lookback} bars before "
+            f"{start_date}, but only {pos} available."
         )
+    return str(dates[pos - max_lookback])
+
+
+def _default_price_fetcher(tickers: list[str], start_date: str, end_date: str, db_path: str) -> pd.DataFrame:
+    from access import PidbReader  # lazy import — pidb_ib only needed for default path
 
     reader = PidbReader(db_path)
     pl_df = reader.get_matrix(symbols=tickers, columns=["close_d"], start=start_date, end=end_date)
@@ -37,9 +45,7 @@ def _default_price_fetcher(tickers: list[str], start_date: str, end_date: str) -
     return df.astype("float64")
 
 
-def run(strategy_path: str, price_fetcher: PriceFetcher | None = None) -> pd.DataFrame:
-    fetcher = price_fetcher if price_fetcher is not None else _default_price_fetcher
-
+def run(strategy_path: str, price_fetcher: PriceFetcher | None = None, db_path: str = DEFAULT_DB_PATH) -> pd.DataFrame:
     # Step 1: compile
     root = compile_strategy(strategy_path)
 
@@ -47,11 +53,20 @@ def run(strategy_path: str, price_fetcher: PriceFetcher | None = None) -> pd.Dat
     tickers = sorted(collect_tickers(root))
     max_lookback = compute_max_lookback(root)
 
-    # Step 3: compute lookback-adjusted fetch start (trading days → calendar days)
-    calendar_days = math.ceil(max_lookback * 7 / 5) + 10
-    fetch_start = root.settings.start_date - timedelta(days=calendar_days)
-    fetch_start_iso = fetch_start.isoformat()
+    start_date_iso = root.settings.start_date.isoformat()
     end_date_iso = root.settings.end_date.isoformat()
+
+    if price_fetcher is None:
+        # Step 3: resolve precise fetch start from the trading calendar
+        if max_lookback > 0:
+            fetch_start_iso = _resolve_lookback_start(tickers[0], start_date_iso, max_lookback, db_path)
+        else:
+            fetch_start_iso = start_date_iso
+        fetcher = lambda t, s, e: _default_price_fetcher(t, s, e, db_path)
+    else:
+        # Custom fetcher: caller is responsible for providing enough history
+        fetcher = price_fetcher
+        fetch_start_iso = start_date_iso
 
     # Step 4: fetch prices
     price_data = fetcher(tickers, fetch_start_iso, end_date_iso)

@@ -5,8 +5,8 @@
     "id": "a2b3c4d5-e6f7-8901-2345-67890abcdef1",
     "name": "Sohail - Ultimate Portfolio (Constrained)",
     "starting_cash": 100000,
-    "start_date": "2024-01-01",
-    "end_date": "2026-01-01",
+    "start_date": "2025-01-02",
+    "end_date": "2025-12-31",
     "rebalance_frequency": "daily"
   },
   "root_node": {
@@ -46,7 +46,13 @@
             }
           ],
           "true_branch": { "id": "asset-vxx", "type": "asset", "ticker": "VXX" },
-          "false_branch": { "id": "shv-id", "type": "asset", "ticker": "SHV" }
+          "false_branch": { "id": "shv-logic-fallback-id", "type": "asset", "ticker": "SHV" }
+        },
+        {
+          "id": "shv-id",
+          "name": "Cash Buffer",
+          "type": "asset",
+          "ticker": "SHV"
         }
       ]
     },
@@ -85,6 +91,7 @@
             "true_branch": {
               "id": "gold-bull-id",
               "type": "if_else",
+              "logic_mode": "all",
               "conditions": [{ "lhs": { "asset": "GLD", "function": "rsi", "lookback": "20d" }, "comparator": "greater_than", "rhs": 80 }],
               "true_branch": { "id": "asset-shv-3", "type": "asset", "ticker": "SHV" },
               "false_branch": { "id": "asset-gld", "type": "asset", "ticker": "GLD" }

@@ -203,6 +203,38 @@ We chose **option 2 — drift check in moa_rebalancer**. The engine interprets `
 
 ---
 
+## ADR-006 — Narrow DSL `time_offset` to days-only (`d`)
+
+**Date:** 2026-03-23
+**Status:** Accepted
+
+### Context
+
+The DSL `time_offset` type accepted `d` (days), `w` (weeks, ×5), and `m` (months, ×21) via the pattern `^[0-9]+[dwm]$`. pidb_ib provides exclusively daily bars (1 row = 1 trading day). The `w` and `m` multipliers were fixed approximations for bar types that do not exist in the data source (`m=21` is inaccurate for months with 19–23 trading days). No existing strategy uses `w` or `m`.
+
+### Options Considered
+
+1. **Keep `d`, `w`, `m`** — maintain the leaky abstraction; users can write `"1m"` as sugar for `"21d"`
+2. **Drop `d` suffix entirely, accept bare integers** — simplest to parse, but changes the field type from `string` to `integer`, making future unit re-addition a type-level breaking change to every strategy file
+3. **Narrow to `d` only** — remove `w` and `m`; keep `d` suffix so the field type stays `string` and re-adding units later is a backwards-compatible regex widen
+
+### Decision
+
+We chose **option 3 — narrow to `d` only**. The `time_offset` pattern changes from `^[0-9]+[dwm]$` to `^[0-9]+d$`. The compiler's `_LOOKBACK_MULTIPLIERS` dict is reduced to `{"d": 1}` and `_LOOKBACK_RE` to `^(\d+)(d)$`. The multiplier dict architecture is preserved so re-adding `w` later is a one-line dict change plus a regex widen.
+
+### Migration
+
+Replace `w` lookbacks with the equivalent in `d` (multiply by 5). Replace `m` lookbacks with the equivalent in `d` (multiply by 21). Example: `"4w"` → `"20d"`, `"3m"` → `"63d"`. No existing strategy files are affected (grep confirmed zero `w`/`m` usage across all `.moastrat.json` files).
+
+### Consequences
+
+- ✅ DSL is honest — all lookbacks are in trading days (bars), matching pidb_ib's daily-bar guarantee
+- ✅ Removing the approximate `m=21` sugar eliminates silent inaccuracy (months have 19–23 trading days)
+- ✅ `d` suffix is preserved as string type — re-adding `w` is backwards-compatible, not a type-level break
+- ⚠️ Strategies using `w` or `m` will now fail schema validation — none exist, but the pattern is breaking
+
+---
+
 <!-- Add new ADRs above this line, incrementing the number -->
 
 

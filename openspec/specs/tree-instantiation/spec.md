@@ -35,11 +35,13 @@ Container nodes (`if_else`, `weight`, `filter`) SHALL have their children/branch
 ---
 
 ### Requirement: Lookback conversion to trading days
-The compiler SHALL convert every `time_offset` string (matching `^[0-9]+[dwm]$`) to an integer number of trading days using the fixed multipliers: `d=1`, `w=5`, `m=21`. This conversion MUST be applied to:
+The compiler SHALL convert every `time_offset` string (matching `^[0-9]+d$`) to an integer number of trading days using the multiplier `d=1`. This conversion MUST be applied to:
 - `lookback` on condition metric objects (`lhs`, `rhs`) in `if_else` conditions
 - `duration` on condition objects in `if_else` conditions
 - `lookback` on `sortMetric` objects in `filter` nodes
 - `lookback` in `method_params` for `inverse_volatility` weight nodes
+
+The `w` (week) and `m` (month) unit suffixes are removed. Only `d` (day) is accepted. Strategies using `w` or `m` SHALL fail with `DSLValidationError`.
 
 After instantiation, all these fields SHALL contain `int` values — never raw `time_offset` strings.
 
@@ -47,16 +49,16 @@ After instantiation, all these fields SHALL contain `int` values — never raw `
 - **WHEN** a condition metric has `lookback: "200d"`
 - **THEN** the instantiated condition dict contains `lookback: 200`
 
-#### Scenario: Weeks conversion
+#### Scenario: Invalid week suffix rejected
 - **WHEN** a sortMetric has `lookback: "4w"`
-- **THEN** the instantiated `sort_by` dict contains `lookback: 20`
+- **THEN** `DSLValidationError` is raised with a message indicating invalid `time_offset` format
 
-#### Scenario: Months conversion
+#### Scenario: Invalid month suffix rejected
 - **WHEN** a condition has `duration: "3m"`
-- **THEN** the instantiated condition dict contains `duration: 63`
+- **THEN** `DSLValidationError` is raised with a message indicating invalid `time_offset` format
 
 #### Scenario: Inverse volatility lookback
-- **WHEN** a weight node has `method: "inverse_volatility"` and `method_params.lookback: "6m"`
+- **WHEN** a weight node has `method: "inverse_volatility"` and `method_params.lookback: "126d"`
 - **THEN** the instantiated `WeightNode.method_params["lookback"]` equals `126`
 
 #### Scenario: Current price has no lookback
@@ -115,7 +117,7 @@ Each instantiated node SHALL carry the attributes from the DSL dict into the cor
 
 #### Scenario: Weight node attributes
 - **WHEN** a weight node dict has `method: "defined"`, `method_params: {"custom_weights": {...}}`, and two children
-- **THEN** the `WeightNode` has `.method == "defined"`, `.method_params == {"custom_weights": {...}}`, and `.children` as a list of two instantiated nodes
+- **THEN** the `WeightNode` has `.method == "defined"`, `.method_params == {"weights": {...}}` (compiler normalises `custom_weights` → `weights`), and `.children` as a list of two instantiated nodes
 
 #### Scenario: Asset node attributes
 - **WHEN** an asset node dict has `id: "abc"`, `ticker: "SPY"`, and no `name`
