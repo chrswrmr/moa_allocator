@@ -1,0 +1,56 @@
+{
+  "id": "b55a1234-c89b-12d3-a456-426614174000",
+  "version-dsl": "1.0.0",
+  "settings": {
+    "id": "d2c3de3d-4fea-4d7c-a8b0-29f63c4c3454",
+    "name": "Multi-Asset Volatility Shield",
+    "starting_cash": 100000,
+    "start_date": "2018-07-27",
+    "end_date": "2025-12-31",
+    "rebalance_frequency": "weekly",
+    "rebalance_threshold": 0.02,
+    "slippage": 0.0005,
+    "fees": 0.0
+  },
+  "root_node": {
+    "id": "ad8e7f50-3d3f-4e5a-a6c7-9b2d1c0e9f8a",
+    "name": "Risk-Parity Basket",
+    "type": "weight",
+    "method": "inverse_volatility",
+    "method_params": {
+      "lookback": "20d"
+    },
+    "children": [
+      {
+        "id": "3f2e1d0c-9b8a-7f6e-5d4c-1a2b3c4d5e6f",
+        "name": "US Equities",
+        "type": "asset",
+        "ticker": "SPY"
+      },
+      {
+        "id": "2b1a0d9c-8b7a-6f5e-4d3c-2b1a0d9c8b7a",
+        "name": "Nasdaq 100",
+        "type": "asset",
+        "ticker": "QQQ"
+      },
+      {
+        "id": "e458e692-7711-479c-9c7d-e9f0d1a49f7e",
+        "name": "Gold",
+        "type": "asset",
+        "ticker": "GLD"
+      },
+      {
+        "id": "0e9f8a7b-6c5d-4e3f-2b1a-0d9c8b7a6f5e",
+        "name": "Intermediate Treasuries",
+        "type": "asset",
+        "ticker": "IEF"
+      },
+      {
+        "id": "7878696d-352b-456c-8c4d-617374657231",
+        "name": "Commodities",
+        "type": "asset",
+        "ticker": "DBC"
+      }
+    ]
+  }
+}

@@ -47,3 +47,19 @@ DATE,SPY,IWM
 2024-01-03,0.5,0.5
 ...
 ```
+
+## Metrics
+
+All metrics treat `series[-1]` as today's close. `lookback` is the trailing window in trading days. If the series is too short for the requested lookback, the metric returns `NaN` (which fails the condition and routes to the false branch).
+
+| Metric | Formula | Notes |
+|--------|---------|-------|
+| `current_price` | `series[-1]` | No lookback required |
+| `cumulative_return` | `series[-1] / series[-lookback] - 1` | Fractional return over the window |
+| `sma_price` | `mean(series[-lookback:])` | Simple moving average of prices |
+| `ema_price` | EWM with `span=lookback` | Exponential moving average; more weight on recent prices |
+| `sma_return` | `mean(daily_returns[-lookback:])` | Average of daily percentage returns |
+| `max_drawdown` | `min((price - running_peak) / running_peak)` over window | Negative value; e.g. `-0.10` = 10% drawdown |
+| `rsi` | Wilder RSI | 0–100; above 70 overbought, below 30 oversold |
+| `std_dev_price` | `std(series[-lookback:], ddof=1)` | Price standard deviation in currency units |
+| `std_dev_return` | `std(daily_returns[-lookback:], ddof=1)` | Daily return standard deviation (fractional) |

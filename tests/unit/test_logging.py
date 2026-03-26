@@ -98,7 +98,7 @@ def test_keyword_anchors_in_log(caplog, tmp_path):
         runner.run()
 
     log_text = caplog.text
-    for keyword in ("COMPILE", "REBALANCE", "SELECT", "WEIGHT", "NAV", "ALLOC"):
+    for keyword in ("COMPILE", "DOWNWARD", "NAV", "ALLOC", "UPWARD"):
         assert keyword in log_text, f"Keyword '{keyword}' not found in log output"
 
 
@@ -152,3 +152,62 @@ def test_library_import_no_handlers():
     moa_logger = logging.getLogger("moa_allocations")
     # The fixture clears handlers after each test; at import time there should be none
     assert len(moa_logger.handlers) == 0
+
+
+# ---------------------------------------------------------------------------
+# 8.5 — UPWARD pass detail respects log level
+# ---------------------------------------------------------------------------
+
+def test_upward_pass_detail_at_debug_level(caplog, tmp_path):
+    """UPWARD pass per-node blocks appear at DEBUG level and not at INFO level."""
+    path = tmp_path / "strategy.moastrat.json"
+    path.write_text(json.dumps(_SIMPLE_STRATEGY), encoding="utf-8")
+
+    with caplog.at_level(logging.DEBUG, logger="moa_allocations"):
+        root = compile_strategy(str(path))
+        price_data = _make_price_data(["SPY", "BND"])
+        runner = Runner(root, price_data)
+        runner.run()
+
+    assert "┌─" in caplog.text, "Expected per-node block markers at DEBUG level"
+    assert "UPWARD" in caplog.text, "Expected UPWARD keyword at DEBUG level"
+
+    caplog.clear()
+
+    with caplog.at_level(logging.INFO, logger="moa_allocations"):
+        root = compile_strategy(str(path))
+        price_data = _make_price_data(["SPY", "BND"])
+        runner = Runner(root, price_data)
+        runner.run()
+
+    assert "┌─" not in caplog.text, "Per-node block markers should not appear at INFO level"
+    assert "UPWARD" not in caplog.text, "UPWARD keyword should not appear at INFO level"
+
+
+# ---------------------------------------------------------------------------
+# 8.6 — DOWNWARD pass detail appears at DEBUG level
+# ---------------------------------------------------------------------------
+
+def test_downward_pass_detail_at_debug_level(caplog, tmp_path):
+    """DOWNWARD pass per-node blocks appear at DEBUG level and not at INFO level."""
+    path = tmp_path / "strategy.moastrat.json"
+    path.write_text(json.dumps(_SIMPLE_STRATEGY), encoding="utf-8")
+
+    with caplog.at_level(logging.DEBUG, logger="moa_allocations"):
+        root = compile_strategy(str(path))
+        price_data = _make_price_data(["SPY", "BND"])
+        runner = Runner(root, price_data)
+        runner.run()
+
+    assert "┌─" in caplog.text, "Expected per-node block markers at DEBUG level"
+    assert "DOWNWARD" in caplog.text, "Expected DOWNWARD keyword at DEBUG level"
+
+    caplog.clear()
+
+    with caplog.at_level(logging.INFO, logger="moa_allocations"):
+        root = compile_strategy(str(path))
+        price_data = _make_price_data(["SPY", "BND"])
+        runner = Runner(root, price_data)
+        runner.run()
+
+    assert "┌─" not in caplog.text, "Per-node block markers should not appear at INFO level"

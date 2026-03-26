@@ -1,0 +1,58 @@
+{
+  "id": "c66b2345-d90c-23e4-b567-537725285111",
+  "version-dsl": "1.0.0",
+  "settings": {
+    "id": "e3d4ef4e-5fba-5e8d-b9c1-30f74d5d4565",
+    "name": "Nested Synthetic All-Weather",
+    "starting_cash": 100000,
+    "start_date": "2020-07-27",
+    "end_date": "2025-12-31",
+    "rebalance_frequency": "weekly",
+    "rebalance_threshold": 0.02,
+    "slippage": 0.0005,
+    "fees": 0.0
+  },
+  "root_node": {
+    "id": "bd9f8a61-4e40-5f6b-b7d8-0c3d2d1f0e9b",
+    "name": "Global Risk-Parity Root",
+    "type": "weight",
+    "method": "inverse_volatility",
+    "method_params": {
+      "lookback": "20d"
+    },
+    "children": [
+      {
+        "id": "f58a9b0c-1d2e-3f4a-5b6c-7d8e9f0a1b2c",
+        "name": "Synthetic Tech Growth",
+        "type": "weight",
+        "method": "equal",
+        "children": [
+          {
+            "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+            "name": "Nasdaq 100",
+            "type": "asset",
+            "ticker": "QQQ"
+          },
+          {
+            "id": "b2c3d4e5-f6a7-5b6c-9d0e-1f2a3b4c5d6e",
+            "name": "Tech Sector",
+            "type": "asset",
+            "ticker": "XLK"
+          }
+        ]
+      },
+      {
+        "id": "c3d4e5f6-a7b8-6c7d-0e1f-2a3b4c5d6e7f",
+        "name": "Gold",
+        "type": "asset",
+        "ticker": "GLD"
+      },
+      {
+        "id": "d4e5f6a7-b8c9-7d8e-1f2a-3b4c5d6e7f8a",
+        "name": "Total Bond Market",
+        "type": "asset",
+        "ticker": "BND"
+      }
+    ]
+  }
+}

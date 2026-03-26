@@ -1,0 +1,72 @@
+{
+  "id": "aaaabbbb-cccc-dddd-eeee-ffff00000001",
+  "version-dsl": "1.0.0",
+  "settings": {
+    "id": "aaaabbbb-cccc-dddd-eeee-ffff00000002",
+    "name": "SPY All Metrics Demo",
+    "starting_cash": 100000,
+    "start_date": "2019-06-05",
+    "end_date": "2020-06-30",
+    "rebalance_frequency": "daily"
+  },
+  "root_node": {
+    "id": "aaaabbbb-cccc-dddd-eeee-ffff00000003",
+    "name": "SPY Multi-Metric Trend Filter",
+    "type": "if_else",
+    "logic_mode": "all",
+    "conditions": [
+      {
+        "lhs": { "asset": "SPY", "function": "current_price" },
+        "comparator": "greater_than",
+        "rhs": { "asset": "SPY", "function": "sma_price", "lookback": "100d" }
+      },
+      {
+        "lhs": { "asset": "SPY", "function": "cumulative_return", "lookback": "60d" },
+        "comparator": "greater_than",
+        "rhs": 0.0
+      },
+      {
+        "lhs": { "asset": "SPY", "function": "ema_price", "lookback": "20d" },
+        "comparator": "greater_than",
+        "rhs": { "asset": "SPY", "function": "sma_price", "lookback": "50d" }
+      },
+      {
+        "lhs": { "asset": "SPY", "function": "sma_return", "lookback": "20d" },
+        "comparator": "greater_than",
+        "rhs": 0.0
+      },
+      {
+        "lhs": { "asset": "SPY", "function": "max_drawdown", "lookback": "60d" },
+        "comparator": "greater_than",
+        "rhs": -0.1
+      },
+      {
+        "lhs": { "asset": "SPY", "function": "rsi", "lookback": "14d" },
+        "comparator": "less_than",
+        "rhs": 70.0
+      },
+      {
+        "lhs": { "asset": "SPY", "function": "std_dev_price", "lookback": "20d" },
+        "comparator": "less_than",
+        "rhs": 15.0,
+        "duration": "3d"
+      },
+      {
+        "lhs": { "asset": "SPY", "function": "std_dev_return", "lookback": "20d" },
+        "comparator": "less_than",
+        "rhs": 0.02,
+        "duration": "3d"
+      }
+    ],
+    "true_branch": {
+      "id": "aaaabbbb-cccc-dddd-eeee-ffff00000004",
+      "type": "asset",
+      "ticker": "SPY"
+    },
+    "false_branch": {
+      "id": "aaaabbbb-cccc-dddd-eeee-ffff00000005",
+      "type": "asset",
+      "ticker": "SHV"
+    }
+  }
+}

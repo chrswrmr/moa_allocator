@@ -1,2 +1,3 @@
-- current raw price is used. Needs adjusted
-- currently: start and end date need to be a trading day. Fix: match next available date where data is available 
+- current: start and end date need to be a trading day. To-Be: take start/end date and match with next available date where data is available
+- current: backtests starts warm-up with start phase. To-be: check how many bar back the warum-up needs to be. Start creating the daily alloc at date when all metrics are warmed up
+- current 2026-03-23 17:45:00,227  INFO  Strategy loaded: ... tickers: 3. To-Be: Name with tickers

@@ -312,6 +312,56 @@ class TestRhsMetricDict:
 
 
 # ---------------------------------------------------------------------------
+# 3.10  price_offset correctness
+# ---------------------------------------------------------------------------
+
+class TestPriceOffset:
+    def test_current_price_reads_from_simulation_date_not_pre_sim(self):
+        # Full array: 100 pre-sim entries (value=50) + sim entries starting at index 100
+        # price_offset=100, t_idx=5 → correct read is price_arr[105]=110
+        # Without fix it would read price_arr[5]=50 and route to false_branch
+        pre_sim = [50.0] * 100
+        sim = [110.0] * 10
+        price_arr = _make_series(*pre_sim, *sim)
+        node = _if_else_node({"A": price_arr}, t_idx=5)
+        algo = SelectIfCondition(
+            conditions=[_cond("A", "greater_than", 100.0, duration=1)],
+            logic_mode="all",
+            price_offset=100,
+        )
+        algo(node)
+        assert node.temp["selected"] == ["true_branch"]
+
+    def test_sma_price_window_ends_at_simulation_date(self):
+        # price_offset=5, t_idx=10, lookback=5
+        # Correct window: price_arr[11:16] → mean=200 (> 100 → true)
+        # Wrong window:   price_arr[6:11]  → mean=50  (< 100 → false)
+        pre_and_early = [50.0] * 11   # indices 0-10
+        correct_window = [200.0] * 5  # indices 11-15 (price_offset+t_idx-4 .. price_offset+t_idx)
+        price_arr = _make_series(*pre_and_early, *correct_window)
+        node = _if_else_node({"A": price_arr}, t_idx=10)
+        algo = SelectIfCondition(
+            conditions=[_cond("A", "greater_than", 100.0, duration=1,
+                              lhs_func="sma_price", lhs_lookback=5)],
+            logic_mode="all",
+            price_offset=5,
+        )
+        algo(node)
+        assert node.temp["selected"] == ["true_branch"]
+
+    def test_price_offset_zero_behaviour_unchanged(self):
+        # price_offset=0: series[-1] at t_idx=0 is price_arr[0]=105
+        node = _if_else_node({"A": _make_series(105.0)}, t_idx=0)
+        algo = SelectIfCondition(
+            conditions=[_cond("A", "greater_than", 100.0, duration=1)],
+            logic_mode="all",
+            price_offset=0,
+        )
+        algo(node)
+        assert node.temp["selected"] == ["true_branch"]
+
+
+# ---------------------------------------------------------------------------
 # 4.1-4.3  WeightSpecified
 # ---------------------------------------------------------------------------
 

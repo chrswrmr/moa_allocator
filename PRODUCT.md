@@ -130,7 +130,3 @@ Each change is one OpenSpec unit. Starting point specs (in `openspec/changes/Sta
 - [open] I2 — `bt_rebalancer` / `iba` integration (out of scope for this repo)
 
 ---
-
-## Open Questions
-
-- [ ] **Non-trading days:** `moa_allocations` will not validate the input index — `pidb_ib` is responsible for delivering clean trading-day-only rows. This must be documented as an explicit invariant in `pidb_ib`'s interface contract.

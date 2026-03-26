@@ -48,12 +48,17 @@ def _max_drawdown(series: np.ndarray, lookback: int) -> float:
 
 
 def _rsi(series: np.ndarray, lookback: int) -> float:
-    returns = np.diff(series[-lookback - 1:])
+    # Wilder RSI: phase 1 seeds avg_gain/avg_loss with the simple mean of the
+    # first `lookback` differences; phase 2 applies Wilder smoothing over all
+    # remaining differences.  Using np.diff(series) (not a fixed-length tail)
+    # means any extra history beyond the minimum warm-up is consumed, which
+    # makes the output converge toward standard charting platform values.
+    returns = np.diff(series)
     gains = np.where(returns > 0, returns, 0.0)
     losses = np.where(returns < 0, -returns, 0.0)
-    avg_gain = gains[0]
-    avg_loss = losses[0]
-    for g, l in zip(gains[1:], losses[1:]):
+    avg_gain = float(np.mean(gains[:lookback]))
+    avg_loss = float(np.mean(losses[:lookback]))
+    for g, l in zip(gains[lookback:], losses[lookback:]):
         avg_gain = (avg_gain * (lookback - 1) + g) / lookback
         avg_loss = (avg_loss * (lookback - 1) + l) / lookback
     if avg_loss == 0:

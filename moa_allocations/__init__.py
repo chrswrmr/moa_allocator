@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 from typing import Callable
 
 import pandas as pd
@@ -10,6 +11,34 @@ from moa_allocations.engine import Runner, collect_tickers, compute_max_lookback
 PriceFetcher = Callable[[list[str], str, str], pd.DataFrame]
 
 DEFAULT_DB_PATH = r"C:\py\pidb_ib\data\pidb_ib.db"
+
+
+def _snap_to_trading_day(date_str: str, direction: str, anchor_ticker: str, db_path: str) -> str:
+    """Return the nearest in-calendar trading day for *date_str*.
+
+    direction='forward' : first date >= date_str  (used for start_date)
+    direction='backward': last  date <= date_str  (used for end_date)
+    """
+    from access import PidbReader  # lazy import — pidb_ib only needed for default path
+
+    reader = PidbReader(db_path)
+    pl_df = reader.get_matrix(symbols=[anchor_ticker], columns=["close_d"])
+    dates = [str(d) for d in pl_df.sort("date")["date"].to_list()]
+
+    if direction == "forward":
+        idx = bisect.bisect_left(dates, date_str)
+        if idx >= len(dates):
+            raise ValueError(
+                f"Date snapping failed: no trading day at or after {date_str!r} in the pidb_ib calendar."
+            )
+        return dates[idx]
+    else:  # backward
+        idx = bisect.bisect_right(dates, date_str) - 1
+        if idx < 0:
+            raise ValueError(
+                f"Date snapping failed: no trading day at or before {date_str!r} in the pidb_ib calendar."
+            )
+        return dates[idx]
 
 
 def _resolve_lookback_start(anchor_ticker: str, start_date: str, max_lookback: int, db_path: str) -> str:
@@ -57,20 +86,26 @@ def run(strategy_path: str, price_fetcher: PriceFetcher | None = None, db_path: 
     end_date_iso = root.settings.end_date.isoformat()
 
     if price_fetcher is None:
-        # Step 3: resolve precise fetch start from the trading calendar
+        # Step 3: snap dates to nearest trading days in the pidb_ib calendar
+        if not tickers:
+            raise ValueError("Cannot snap dates: strategy contains no tickers.")
+        snapped_start = _snap_to_trading_day(start_date_iso, "forward", tickers[0], db_path)
+        snapped_end = _snap_to_trading_day(end_date_iso, "backward", tickers[0], db_path)
+        # Step 4: resolve precise fetch start from the trading calendar
         if max_lookback > 0:
-            fetch_start_iso = _resolve_lookback_start(tickers[0], start_date_iso, max_lookback, db_path)
+            fetch_start_iso = _resolve_lookback_start(tickers[0], snapped_start, max_lookback, db_path)
         else:
-            fetch_start_iso = start_date_iso
+            fetch_start_iso = snapped_start
         fetcher = lambda t, s, e: _default_price_fetcher(t, s, e, db_path)
+        end_date_iso = snapped_end
     else:
         # Custom fetcher: caller is responsible for providing enough history
         fetcher = price_fetcher
         fetch_start_iso = start_date_iso
 
-    # Step 4: fetch prices
+    # Step 5: fetch prices
     price_data = fetcher(tickers, fetch_start_iso, end_date_iso)
 
-    # Steps 5–7: run engine and return allocations
+    # Steps 6–8: run engine and return allocations
     runner = Runner(root, price_data)
     return runner.run()

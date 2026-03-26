@@ -37,10 +37,10 @@
 uv run python main.py --strategy strategies/first.moastrat.json
 
 # Override the database path
-uv run python main.py --strategy strategies/first.moastrat.json --db "D:\other\pidb_ib.db"
+uv run python main.py --strategy strategies/spy_sma100.moastrat.json --db "D:\other\pidb_ib.db"
 
 # Override the output directory (default: output/)
-uv run python main.py --strategy strategies/first.moastrat.json --output my_output/
+uv run python main.py --strategy strategies/spy_sma100.moastrat.json --output my_output/
 ```
 
 Output is written to `output/<YYYYMMDD_HHMM>_<strategy-stem>.csv`.

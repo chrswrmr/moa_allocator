@@ -23,7 +23,7 @@
       "Bash($env:PIDB_IB_DB_PATH = \"C:\\\\py\\\\pidb_ib\\\\data\\\\pidb_ib.db\")",
       "Bash(export PIDB_IB_DB_PATH=\"C:\\\\py\\\\pidb_ib\\\\data\\\\pidb_ib.db\")",
       "Bash(grep -h \"lookback\\\\|duration\" c:pymoa_allocatorstrategies*.moastrat.json)",
-      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d[''''progress''''][''''complete''''], d[''''progress''''][''''total'''']\\)\")"
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d[''''progress''''][''''complete''''], d[''''progress''''][''''total'''']\\)\")",
     ]
   },
   "autoAttachContext": false

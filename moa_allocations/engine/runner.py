@@ -197,7 +197,8 @@ def _log_downward_ifelse(node: IfElseNode, t_idx: int, runner: Runner) -> None:
             rhs_val = metrics["rhs_value"]
             lhs_part = f"{lhs_str} ({lhs_val:.6f})"
             rhs_part = f"{rhs_str} ({rhs_val:.6f})" if isinstance(rhs, dict) else f"{rhs_val:.6f}"
-            lines.append(f"│  Condition{i}: {lhs_part} {cmp} {rhs_part}")
+            result_tag = "[true]" if metrics.get("result") else "[false]"
+            lines.append(f"│  Condition{i} {result_tag}: {lhs_part} {cmp} {rhs_part}")
         else:
             lines.append(f"│  Condition{i}: {lhs_str} {cmp} {rhs_str}")
     true_id = node.true_branch.id
@@ -211,7 +212,7 @@ def _log_downward_ifelse(node: IfElseNode, t_idx: int, runner: Runner) -> None:
         w = weights.get(branch.id, 0.0)
         selected = "  [SELECTED]" if branch.id in weights else ""
         lines.append(
-            f"│   - {branch_key}: NAV {branch_lbl} {val_lbl}= {branch_val:.6f}  w={w:.6f}  id={branch.id}{selected}"
+            f"│   - {branch_key}: NAV {branch_lbl} w={w:.6f}  {val_lbl}= {branch_val:.6f}  id={branch.id}{selected}"
         )
     nav_val = node.perm["nav_array"][t_idx]
     lines.append(f"│  NAV node  t={t_idx}  nav={nav_val:.6f}")
@@ -275,7 +276,7 @@ def compute_max_lookback(root: RootNode) -> int:
     return max_lb
 
 
-def _build_algo_stack(node: StrategyNode) -> list:
+def _build_algo_stack(node: StrategyNode, price_offset: int = 0) -> list:
     """Return the AlgoStack list for *node* based on its concrete class and parameters."""
     if isinstance(node, WeightNode):
         if node.method == "equal":
@@ -293,7 +294,7 @@ def _build_algo_stack(node: StrategyNode) -> list:
         else:
             return [SelectBottomN(n, metric, lookback), WeightEqually()]
     elif isinstance(node, IfElseNode):
-        return [SelectIfCondition(node.conditions, node.logic_mode), WeightEqually()]
+        return [SelectIfCondition(node.conditions, node.logic_mode, price_offset), WeightEqually()]
     return []
 
 
@@ -392,7 +393,7 @@ class Runner:
 
             self._strategy_nodes[node.id] = node
             depth_nodes.append((depth, node))
-            node.algo_stack = _build_algo_stack(node)
+            node.algo_stack = _build_algo_stack(node, self._price_offset)
             child_series: dict[str, np.ndarray] = {}
 
             if isinstance(node, (WeightNode, FilterNode)):
