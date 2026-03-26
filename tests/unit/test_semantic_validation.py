@@ -344,3 +344,107 @@ class TestRebalanceThreshold:
             node_id="root",
             fragment="rebalance_threshold",
         )
+
+
+# ---------------------------------------------------------------------------
+# 4.8 Netting pair semantic validation
+# ---------------------------------------------------------------------------
+
+_TWO_ASSET_ROOT = {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "type": "weight",
+    "method": "equal",
+    "children": [
+        {"id": "22222222-2222-2222-2222-222222222222", "type": "asset", "ticker": "QQQ"},
+        {"id": "33333333-3333-3333-3333-333333333333", "type": "asset", "ticker": "PSQ"},
+    ],
+}
+
+_FOUR_ASSET_ROOT = {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "type": "weight",
+    "method": "equal",
+    "children": [
+        {"id": "22222222-2222-2222-2222-222222222222", "type": "asset", "ticker": "QQQ"},
+        {"id": "33333333-3333-3333-3333-333333333333", "type": "asset", "ticker": "PSQ"},
+        {"id": "44444444-4444-4444-4444-444444444444", "type": "asset", "ticker": "EEM"},
+        {"id": "55555555-5555-5555-5555-555555555555", "type": "asset", "ticker": "EDZ"},
+    ],
+}
+
+_VALID_NETTING = {
+    "pairs": [{"long_ticker": "QQQ", "long_leverage": 1, "short_ticker": "PSQ", "short_leverage": -1}],
+    "cash_ticker": None,
+}
+
+
+class TestNettingValidation:
+    def test_valid_netting_passes(self, tmp_path):
+        doc = _doc(root_node=_TWO_ASSET_ROOT)
+        doc["settings"] = {**doc["settings"], "netting": _VALID_NETTING}
+        _assert_passes(tmp_path, doc)
+
+    def test_no_netting_in_settings_skips_validation(self, tmp_path):
+        """Netting absent — all netting checks skipped, no error."""
+        _assert_passes(tmp_path, VALID_DOC)
+
+    def test_pair_ticker_not_in_tree_fails(self, tmp_path):
+        doc = _doc(root_node=_TWO_ASSET_ROOT)
+        doc["settings"] = {
+            **doc["settings"],
+            "netting": {
+                "pairs": [{"long_ticker": "XYZ", "long_leverage": 1, "short_ticker": "PSQ", "short_leverage": -1}],
+                "cash_ticker": None,
+            },
+        }
+        _assert_fails(tmp_path, doc, node_id="root", fragment="XYZ")
+
+    def test_short_ticker_not_in_tree_fails(self, tmp_path):
+        doc = _doc(root_node=_TWO_ASSET_ROOT)
+        doc["settings"] = {
+            **doc["settings"],
+            "netting": {
+                "pairs": [{"long_ticker": "QQQ", "long_leverage": 1, "short_ticker": "NOPE", "short_leverage": -1}],
+                "cash_ticker": None,
+            },
+        }
+        _assert_fails(tmp_path, doc, node_id="root", fragment="NOPE")
+
+    def test_duplicate_ticker_across_pairs_fails(self, tmp_path):
+        doc = _doc(root_node=_FOUR_ASSET_ROOT)
+        doc["settings"] = {
+            **doc["settings"],
+            "netting": {
+                "pairs": [
+                    {"long_ticker": "QQQ", "long_leverage": 1, "short_ticker": "PSQ", "short_leverage": -1},
+                    {"long_ticker": "QQQ", "long_leverage": 1, "short_ticker": "EDZ", "short_leverage": -3},
+                ],
+                "cash_ticker": None,
+            },
+        }
+        _assert_fails(tmp_path, doc, node_id="root", fragment="QQQ")
+
+    def test_same_long_and_short_ticker_fails(self, tmp_path):
+        doc = _doc(root_node=_TWO_ASSET_ROOT)
+        doc["settings"] = {
+            **doc["settings"],
+            "netting": {
+                "pairs": [{"long_ticker": "QQQ", "long_leverage": 1, "short_ticker": "QQQ", "short_leverage": -1}],
+                "cash_ticker": None,
+            },
+        }
+        _assert_fails(tmp_path, doc, node_id="root", fragment="same")
+
+    def test_two_valid_pairs_passes(self, tmp_path):
+        doc = _doc(root_node=_FOUR_ASSET_ROOT)
+        doc["settings"] = {
+            **doc["settings"],
+            "netting": {
+                "pairs": [
+                    {"long_ticker": "QQQ", "long_leverage": 1, "short_ticker": "PSQ", "short_leverage": -1},
+                    {"long_ticker": "EEM", "long_leverage": 1, "short_ticker": "EDZ", "short_leverage": -3},
+                ],
+                "cash_ticker": None,
+            },
+        }
+        _assert_passes(tmp_path, doc)

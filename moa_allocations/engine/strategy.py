@@ -16,7 +16,8 @@ class Settings:
     slippage: float
     fees: float
     rebalance_frequency: str  # "daily" | "weekly" | "monthly"
-    rebalance_threshold: float | None
+    rebalance_threshold: float | None = None
+    netting: dict | None = None
 
 
 class RootNode:

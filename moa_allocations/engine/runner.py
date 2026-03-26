@@ -226,7 +226,8 @@ class PriceDataError(Exception):
 
 
 def collect_tickers(root: RootNode) -> set[str]:
-    """BFS walk — collect all tickers referenced in AssetNode leaves and IfElseNode conditions."""
+    """BFS walk — collect all tickers referenced in AssetNode leaves and IfElseNode conditions.
+    Also includes netting.cash_ticker when configured and non-null."""
     tickers: set[str] = set()
     queue: collections.deque = collections.deque([root.root])
     while queue:
@@ -246,6 +247,11 @@ def collect_tickers(root: RootNode) -> set[str]:
         elif isinstance(node, (WeightNode, FilterNode)):
             for child in node.children:
                 queue.append(child)
+    netting = root.settings.netting
+    if netting is not None:
+        cash_ticker = netting.get("cash_ticker")
+        if cash_ticker:
+            tickers.add(cash_ticker)
     return tickers
 
 
@@ -332,6 +338,7 @@ class Runner:
         self.root = root
         self.price_data = price_data
         self.settings = root.settings
+        self._netting = root.settings.netting
 
         # --- Collect all required tickers and max lookback (single BFS each) ---
         tickers = collect_tickers(root)
@@ -462,6 +469,57 @@ class Runner:
         assert abs(total - 1.0) < 1e-9, f"Global weights sum to {total}, expected 1.0"
         return acc
 
+    def _apply_netting(self, weights: dict[str, float]) -> dict[str, float]:
+        """Apply netting pairs transformation to the global weight dict.
+
+        For each pair, computes net exposure, collapses to a single-leg position,
+        and routes freed weight to cash_ticker (or XCASHX if cash_ticker is null).
+        Returns a new dict; input is not modified.
+        """
+        if not self._netting:
+            return weights
+        pairs = self._netting.get("pairs", [])
+        if not pairs:
+            return weights
+
+        cash_ticker = self._netting.get("cash_ticker") or None
+        result = dict(weights)
+        freed = 0.0
+
+        for pair in pairs:
+            long_ticker = pair["long_ticker"]
+            short_ticker = pair["short_ticker"]
+            L = pair["long_leverage"]   # > 0
+            S = pair["short_leverage"]  # < 0
+
+            w_long = result.pop(long_ticker, 0.0)
+            w_short = result.pop(short_ticker, 0.0)
+
+            net_exposure = w_long * L + w_short * S
+
+            if net_exposure > 0.0:
+                new_w_long = net_exposure / L
+                new_w_short = 0.0
+            elif net_exposure < 0.0:
+                new_w_long = 0.0
+                new_w_short = net_exposure / S
+            else:
+                new_w_long = 0.0
+                new_w_short = 0.0
+
+            freed += (w_long + w_short) - (new_w_long + new_w_short)
+
+            if new_w_long > 0.0:
+                result[long_ticker] = new_w_long
+            if new_w_short > 0.0:
+                result[short_ticker] = new_w_short
+
+        if freed > 0.0:
+            dest = cash_ticker if cash_ticker else "XCASHX"
+            result[dest] = result.get(dest, 0.0) + freed
+
+        return result
+
     def _upward_pass(self, t_idx: int, date_str: str = "") -> None:
         """Bottom-up NAV update: iterate _upward_order and compute each node's nav_array[t_idx]."""
         logger.debug(
@@ -536,6 +594,8 @@ class Runner:
         """Simulate over _sim_dates. Upward Pass every day (t_idx > 0); Downward Pass on rebalance days."""
         rows: list[dict] = []
         xcashx_seen = False
+        netting_cash_seen = False
+        netting_cash_ticker = (self._netting or {}).get("cash_ticker") or None
 
         for t_idx, current_date in enumerate(self._sim_dates):
             # Reset temp for all strategy nodes, then restore prior-day weights
@@ -567,6 +627,9 @@ class Runner:
                 logger.debug("t=%s  (no rebalance)", date_str)
 
             weights = self._flatten_weights()
+            weights = self._apply_netting(weights)
+            total = sum(weights.values())
+            assert abs(total - 1.0) < 1e-9, f"Global weights sum to {total}, expected 1.0"
             logger.debug(
                 "ALLOC  t=%s  weights=%s",
                 date_str, {k: f"{v:.6f}" for k, v in weights.items()},
@@ -575,12 +638,16 @@ class Runner:
             logger.debug("-" * 50)
             if "XCASHX" in weights:
                 xcashx_seen = True
+            if netting_cash_ticker and netting_cash_ticker in weights:
+                netting_cash_seen = True
 
             row: dict = {"DATE": date_str}
             row.update(weights)
             rows.append(row)
 
         cols = ["DATE"] + self._leaf_order
+        if netting_cash_ticker and netting_cash_seen and netting_cash_ticker not in self._leaf_order:
+            cols.append(netting_cash_ticker)
         if xcashx_seen:
             cols.append("XCASHX")
         df = pd.DataFrame(rows, columns=cols).fillna(0.0)

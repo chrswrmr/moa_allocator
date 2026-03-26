@@ -20,6 +20,7 @@ The root node of every backtest. Exists exactly once per strategy definition.
 - **fees** — Transaction fee assumption
 - **rebalance_frequency** — One of: `daily`, `weekly`, `monthly`
 - **rebalance_threshold** — Optional; percentage drift (e.g., 0.05 for 5%) that triggers rebalance on any scheduled rebalancing day it is exceeded
+- **netting** — Optional; declares long/short ETF pairs to be netted in the output weight vector (see Netting section below)
 
 ### Threshold Rebalancing
 
@@ -48,7 +49,29 @@ This block is the **root node** and exists only once per backtest.
     "slippage": { "type": "number", "default": 0.0005 },
     "fees": { "type": "number", "default": 0.0 },
     "rebalance_frequency": { "enum": ["daily", "weekly", "monthly"] },
-    "rebalance_threshold": { "type": "number", "description": "Percentage (e.g., 0.05 for 5%)" }
+    "rebalance_threshold": { "type": "number", "description": "Percentage (e.g., 0.05 for 5%)" },
+    "netting": {
+      "type": "object",
+      "required": ["pairs"],
+      "properties": {
+        "pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["long_ticker", "long_leverage", "short_ticker", "short_leverage"],
+            "properties": {
+              "long_ticker": { "type": "string" },
+              "long_leverage": { "type": "number", "exclusiveMinimum": 0 },
+              "short_ticker": { "type": "string" },
+              "short_leverage": { "type": "number", "exclusiveMaximum": 0 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "cash_ticker": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
   }
 }
 ```
@@ -66,6 +89,66 @@ This block is the **root node** and exists only once per backtest.
   "fees": 1.0,
   "rebalance_frequency": "monthly",
   "rebalance_threshold": 0.05
+}
+```
+
+### Netting
+
+When a strategy tree can independently route weight to both a long ETF and its leveraged inverse (e.g. QQQ and PSQ), the flattened output may contain offsetting positions. The `netting` block collapses each declared pair into a single net position and redirects the freed weight to a cash ticker or `XCASHX`.
+
+**How it works:**
+
+For each pair `(long_ticker, L, short_ticker, S)` where `L > 0` and `S < 0`:
+
+```
+net_exposure = w_long × L + w_short × S
+```
+
+- If `net_exposure > 0` → hold only the long leg at `net_exposure / L`
+- If `net_exposure < 0` → hold only the short leg at `net_exposure / S`
+- If `net_exposure == 0` → both legs are removed entirely
+
+Freed weight = `(w_long + w_short) − (new_w_long + new_w_short)` is added to `cash_ticker` (if specified) or `XCASHX`.
+
+**Constraints:**
+
+- `long_leverage` must be `> 0` (e.g. `1` for a standard long ETF)
+- `short_leverage` must be `< 0` (e.g. `-1` for a 1× inverse, `-3` for a 3× inverse)
+- Each ticker may appear in at most one pair
+- Both tickers in a pair must exist as asset leaves in the strategy tree
+- `long_ticker` and `short_ticker` within a pair must differ
+- Netting is applied on every trading day (rebalance and carry-forward days)
+- The sum-to-one invariant is preserved after netting
+
+> **v1 limitation:** The Upward Pass (NAV computation) uses raw un-netted weights. The backtested NAV reflects holding both legs; live execution holds only the netted position. Divergence is minimal for 1× inverse pairs.
+
+### Example
+
+```json
+"settings": {
+  "id": "a2b3c4d5-e6f7-8901-2345-67890abcdef1",
+  "name": "Momentum with Netting",
+  "starting_cash": 100000,
+  "start_date": "2023-01-01",
+  "end_date": "2026-01-01",
+  "rebalance_frequency": "monthly",
+  "netting": {
+    "pairs": [
+      {
+        "long_ticker": "QQQ",
+        "long_leverage": 1,
+        "short_ticker": "PSQ",
+        "short_leverage": -1
+      },
+      {
+        "long_ticker": "EEM",
+        "long_leverage": 1,
+        "short_ticker": "EDZ",
+        "short_leverage": -3
+      }
+    ],
+    "cash_ticker": "SHV"
+  }
 }
 ```
 

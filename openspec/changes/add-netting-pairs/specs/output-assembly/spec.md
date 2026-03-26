@@ -1,22 +1,4 @@
-## Purpose
-
-Collect the daily global weight vectors produced by the simulation loop into a `pd.DataFrame`. `Runner.run()` returns this DataFrame as its sole output — file I/O is the caller's responsibility. The DataFrame is the primary deliverable consumed by downstream systems (`bt_rebalancer`, `iba`) and by the CLI (`main.py`).
-
-## Requirements
-
-### Requirement: Runner.run() returns allocations DataFrame
-`Runner.run()` SHALL return a `pd.DataFrame` containing daily allocation weights. The return type SHALL be `pd.DataFrame`, not `None`.
-
-#### Scenario: Successful run returns DataFrame
-- **WHEN** `runner.run()` completes without error
-- **THEN** the return value is a `pd.DataFrame` with one row per trading day in `[start_date, end_date]`
-
-### Requirement: DATE column format
-The DataFrame SHALL have `DATE` as its first column, containing ISO 8601 date strings (`YYYY-MM-DD`).
-
-#### Scenario: DATE column values
-- **WHEN** the simulation runs over trading days 2024-01-02 through 2024-01-04
-- **THEN** the `DATE` column contains `['2024-01-02', '2024-01-03', '2024-01-04']` as strings
+## MODIFIED Requirements
 
 ### Requirement: Ticker column order
 Ticker columns SHALL appear after `DATE` in DSL leaf order (left-to-right DFS traversal of the compiled tree). Tickers SHALL be uppercase. If a `netting.cash_ticker` is configured and received weight on any day during the simulation and is NOT already a DSL leaf, it SHALL appear after all DSL leaf columns. If `XCASHX` received weight on any day during the simulation, it SHALL appear as the last column.
@@ -46,15 +28,3 @@ Column order: `DATE` → DSL leaf tickers (in DFS order) → netting cash ticker
 #### Scenario: Netting frees cash to XCASHX
 - **WHEN** netting is configured with no `cash_ticker` (null) and netting produces freed weight
 - **THEN** `XCASHX` receives the freed weight and appears as the last column
-
-### Requirement: Weight values
-Each cell SHALL contain a `float` in `[0.0, 1.0]`. Every row SHALL sum to `1.0`.
-
-#### Scenario: Row sums
-- **WHEN** a row has values `SPY=0.6, BND=0.4`
-- **THEN** the row sums to `1.0`
-
-#### Scenario: XCASHX day
-- **WHEN** all AlgoStacks halted on a given day
-- **THEN** the row has `XCASHX=1.0` and all ticker columns are `0.0`
-

@@ -120,3 +120,56 @@ def test_invalid_field_type_raises_dsl_error(tmp_path):
         compile_strategy(path)
     assert exc_info.value.node_id == "root"
     assert exc_info.value.node_name == "settings"
+
+
+# ---------------------------------------------------------------------------
+# 6.8 Netting leverage sign constraints enforced at schema level
+# ---------------------------------------------------------------------------
+
+def _netting_doc(long_leverage, short_leverage):
+    """Document with a netting pair; root_node is a single SPY asset (schema-level test only)."""
+    return {
+        **VALID_DOC,
+        "settings": {
+            **VALID_DOC["settings"],
+            "netting": {
+                "pairs": [
+                    {
+                        "long_ticker": "QQQ",
+                        "long_leverage": long_leverage,
+                        "short_ticker": "PSQ",
+                        "short_leverage": short_leverage,
+                    }
+                ],
+                "cash_ticker": None,
+            },
+        },
+    }
+
+
+def test_netting_zero_long_leverage_rejected(tmp_path):
+    """long_leverage: 0 violates exclusiveMinimum: 0 — schema rejects it."""
+    path = _write_json(tmp_path, _netting_doc(long_leverage=0, short_leverage=-1))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+def test_netting_negative_long_leverage_rejected(tmp_path):
+    """long_leverage: -1 violates exclusiveMinimum: 0 — schema rejects it."""
+    path = _write_json(tmp_path, _netting_doc(long_leverage=-1, short_leverage=-1))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+def test_netting_zero_short_leverage_rejected(tmp_path):
+    """short_leverage: 0 violates exclusiveMaximum: 0 — schema rejects it."""
+    path = _write_json(tmp_path, _netting_doc(long_leverage=1, short_leverage=0))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+def test_netting_positive_short_leverage_rejected(tmp_path):
+    """short_leverage: 1 violates exclusiveMaximum: 0 — schema rejects it."""
+    path = _write_json(tmp_path, _netting_doc(long_leverage=1, short_leverage=1))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)

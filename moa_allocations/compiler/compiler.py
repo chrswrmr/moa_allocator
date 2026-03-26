@@ -45,6 +45,7 @@ def _build_settings(raw: dict) -> Settings:
         fees=float(raw.get("fees", 0.0)),
         rebalance_frequency=raw["rebalance_frequency"],
         rebalance_threshold=raw.get("rebalance_threshold"),
+        netting=raw.get("netting"),
     )
 
 
@@ -236,6 +237,35 @@ def _validate_semantics(doc: dict) -> None:
                     node_name=node_name,
                     message=f"metric function '{sort_by['function']}' requires 'lookback' (sort_by)",
                 )
+
+    # --- Netting pair validation ---
+    netting = settings.get("netting")
+    if netting is not None:
+        leaf_tickers = {n["ticker"] for n in all_nodes if n.get("type") == "asset"}
+        seen_netting: set[str] = set()
+        for pair in netting.get("pairs", []):
+            long_ticker = pair["long_ticker"]
+            short_ticker = pair["short_ticker"]
+            if long_ticker == short_ticker:
+                raise DSLValidationError(
+                    node_id="root",
+                    node_name="settings",
+                    message=f"netting pair long_ticker and short_ticker are the same: '{long_ticker}'",
+                )
+            for ticker in (long_ticker, short_ticker):
+                if ticker not in leaf_tickers:
+                    raise DSLValidationError(
+                        node_id="root",
+                        node_name="settings",
+                        message=f"netting pair ticker '{ticker}' is not a leaf in the strategy tree",
+                    )
+                if ticker in seen_netting:
+                    raise DSLValidationError(
+                        node_id="root",
+                        node_name="settings",
+                        message=f"netting pair ticker '{ticker}' appears in more than one pair",
+                    )
+                seen_netting.add(ticker)
 
     # --- Date ordering ---
     start = date.fromisoformat(settings["start_date"])

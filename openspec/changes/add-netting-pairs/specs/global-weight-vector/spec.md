@@ -1,8 +1,4 @@
-## Purpose
-
-After each Downward Pass, flatten the tree's local per-node weights into a single global weight vector mapping every leaf ticker (and the virtual sentinel `XCASHX`) to its share of the total portfolio. This vector is the primary output of the simulation loop.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Flatten local weights to global leaf weights
 After each Downward Pass completes, the engine SHALL compute a global weight for every leaf node by multiplying local weights along the path from root to that leaf: `global_weight(leaf) = ∏ local_weights along path from root → leaf`. The flattening SHALL use a DFS walk from `root.root`, carrying the cumulative product downward. `XCASHX` entries in `temp['weights']` SHALL be accumulated as a virtual leaf.

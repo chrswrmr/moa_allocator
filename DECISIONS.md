@@ -235,6 +235,40 @@ Replace `w` lookbacks with the equivalent in `d` (multiply by 5). Replace `m` lo
 
 ---
 
+## ADR-007 — Netting pairs as a post-flatten transformation in `settings`
+
+**Date:** 2026-03-26
+**Status:** Accepted
+
+### Context
+
+The tree's context-blind design (P2) means different branches can independently select both a long ETF (e.g., QQQ) and its leveraged inverse (e.g., PSQ). After flattening, the global weight vector may contain offsetting positions — economically wasteful, doubling fees, spreads, and tracking error for a net exposure achievable with a single leg.
+
+### Options Considered
+
+1. **Netting as a new Algo type wrapping the root** — an algo that collapses pair weights at the root level. Rejected: requires the root to know specific leaf tickers (violates P5, NAV Encapsulation) and adds complexity to the AlgoStack pipeline.
+2. **Netting in a post-processing step outside the engine** — applied in `__init__.py` or a caller after `Runner.run()`. Rejected: netting config is part of the strategy DSL and should be executed by the engine; it also needs to integrate with the daily loop for future NAV-aware netting.
+3. **Post-flatten transformation inside `Runner.run()`** — netting operates on the global weight dict returned by `_flatten_weights()`, before the sum-to-one assertion. Accepted.
+
+### Decision
+
+Netting is configured in the DSL `settings` block as an optional `netting` object with a `pairs` array and an optional `cash_ticker`. The engine applies `_apply_netting()` to the flattened weight vector on every trading day (rebalance and carry-forward), after `_flatten_weights()` and before the sum-to-one assertion.
+
+Leverage factors are signed: `long_leverage > 0`, `short_leverage < 0`. Net exposure per pair is:
+
+```
+net_exposure = w_long × long_leverage + w_short × short_leverage
+```
+
+Freed weight (the reduction in gross allocation) is routed to `cash_ticker` or `XCASHX` if `cash_ticker` is null.
+
+### Consequences
+
+- ✅ Additive — strategies without `netting` behave identically (no-op)
+- ✅ Respects P2/P3 — netting is outside the tree and AlgoStack
+- ✅ Sum-to-one invariant preserved (freed weight is always non-negative and re-allocated to cash)
+- ⚠️ NAV divergence (v1 known limitation): the Upward Pass uses raw un-netted weights; backtested NAV reflects holding both legs, not the netted position. Acceptable for 1x inverse pairs; future v2 can add NAV-aware netting.
+
 <!-- Add new ADRs above this line, incrementing the number -->
 
 

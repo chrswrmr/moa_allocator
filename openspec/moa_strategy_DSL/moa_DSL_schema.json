@@ -65,6 +65,28 @@
         },
         "rebalance_threshold": {
           "type": "number"
+        },
+        "netting": {
+          "type": "object",
+          "properties": {
+            "pairs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["long_ticker", "long_leverage", "short_ticker", "short_leverage"],
+                "properties": {
+                  "long_ticker": {"type": "string"},
+                  "long_leverage": {"type": "number", "exclusiveMinimum": 0},
+                  "short_ticker": {"type": "string"},
+                  "short_leverage": {"type": "number", "exclusiveMaximum": 0}
+                },
+                "additionalProperties": false
+              }
+            },
+            "cash_ticker": {"type": ["string", "null"]}
+          },
+          "required": ["pairs"],
+          "additionalProperties": false
         }
       }
     },
