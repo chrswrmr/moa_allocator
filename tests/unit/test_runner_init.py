@@ -383,3 +383,51 @@ class TestComputeMaxLookback:
         spy = _asset("spy", "SPY")
         node = _weight_equal("root", [spy])
         assert compute_max_lookback(_root(node)) == 0
+
+
+# ---------------------------------------------------------------------------
+# Sentinel cash_ticker (xcashx) excluded from required tickers
+# ---------------------------------------------------------------------------
+
+def _root_with_netting(root_node, cash_ticker: str, start: str = "2024-01-02", end: str = "2024-06-28") -> RootNode:
+    settings = Settings(
+        id="test",
+        name="test",
+        starting_cash=100_000.0,
+        start_date=date.fromisoformat(start),
+        end_date=date.fromisoformat(end),
+        slippage=0.0,
+        fees=0.0,
+        rebalance_frequency="daily",
+        rebalance_threshold=None,
+        netting={"cash_ticker": cash_ticker},
+    )
+    return RootNode(settings=settings, root=root_node, dsl_version="1.0.0")
+
+
+class TestXcashxSentinelExcluded:
+    def test_xcashx_lowercase_no_price_data_error(self):
+        """Runner instantiates without error when cash_ticker is 'xcashx' and real tickers are present."""
+        spy = _asset("spy", "SPY")
+        bnd = _asset("bnd", "BND")
+        node = _weight_equal("root", [spy, bnd])
+        root = _root_with_netting(node, "xcashx")
+        # Should not raise — xcashx is a sentinel, not a real ticker requiring prices
+        Runner(root, _price_data(["SPY", "BND"]))
+
+    def test_xcashx_uppercase_no_price_data_error(self):
+        """Uppercase 'XCASHX' is also excluded from required tickers."""
+        spy = _asset("spy", "SPY")
+        bnd = _asset("bnd", "BND")
+        node = _weight_equal("root", [spy, bnd])
+        root = _root_with_netting(node, "XCASHX")
+        Runner(root, _price_data(["SPY", "BND"]))
+
+    def test_real_cash_ticker_still_required(self):
+        """A real asset cash_ticker like 'SHV' still requires price data."""
+        spy = _asset("spy", "SPY")
+        node = _weight_equal("root", [spy])
+        root = _root_with_netting(node, "SHV")
+        # SHV is a real ticker — missing price data should still raise
+        with pytest.raises(PriceDataError, match="SHV"):
+            Runner(root, _price_data(["SPY"]))

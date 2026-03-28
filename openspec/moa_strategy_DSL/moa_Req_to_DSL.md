@@ -92,6 +92,8 @@ This block is the **root node** and exists only once per backtest.
 }
 ```
 
+> **Optional fields:** `slippage`, `fees`, `rebalance_threshold`, and `netting` are all optional. Omit any you do not need. Without `netting`, no pair collapsing is performed and all asset weights are passed through as-is.
+
 ### Netting
 
 When a strategy tree can independently route weight to both a long ETF and its leveraged inverse (e.g. QQQ and PSQ), the flattened output may contain offsetting positions. The `netting` block collapses each declared pair into a single net position and redirects the freed weight to a cash ticker or `XCASHX`.

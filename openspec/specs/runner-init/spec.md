@@ -108,7 +108,7 @@ Additionally, `Runner.__init__` SHALL pre-allocate `perm['nav_array'] = np.ones(
 
 ### Requirement: Ticker collection from tree
 
-`Runner.__init__` SHALL collect all unique tickers from `AssetNode` leaves and from `IfElseNode` condition references (`lhs.asset`, `rhs.asset` when rhs is a dict). Additionally, if `settings.netting` is configured and `netting.cash_ticker` is a non-null string, that ticker SHALL be included in the collected ticker set. This complete ticker set SHALL be used for price data validation.
+`Runner.__init__` SHALL collect all unique tickers from `AssetNode` leaves and from `IfElseNode` condition references (`lhs.asset`, `rhs.asset` when rhs is a dict). Additionally, if `settings.netting` is configured and `netting.cash_ticker` is a non-null string, that ticker SHALL be included in the collected ticker set — **unless** its value equals `"xcashx"` (case-insensitive), in which case it SHALL be excluded because it is the synthetic cash sentinel that requires no price data. This complete ticker set SHALL be used for price data validation.
 
 #### Scenario: Tickers from asset leaves
 - **WHEN** the tree has `AssetNode` leaves with tickers `["SPY", "BND", "GLD"]`
@@ -133,6 +133,18 @@ Additionally, `Runner.__init__` SHALL pre-allocate `perm['nav_array'] = np.ones(
 #### Scenario: No netting configured
 - **WHEN** `settings.netting` is not present
 - **THEN** ticker collection behaves as before (leaves + condition references only)
+
+#### Scenario: Netting cash ticker is the synthetic sentinel (lowercase)
+- **WHEN** `settings.netting.cash_ticker` is `"xcashx"`
+- **THEN** `"xcashx"` SHALL NOT be added to the collected ticker set
+
+#### Scenario: Netting cash ticker is the synthetic sentinel (uppercase)
+- **WHEN** `settings.netting.cash_ticker` is `"XCASHX"`
+- **THEN** `"XCASHX"` SHALL NOT be added to the collected ticker set
+
+#### Scenario: Strategy with xcashx cash ticker runs without PriceDataError
+- **WHEN** a strategy has `settings.netting.cash_ticker == "xcashx"` and all real asset tickers are present in `price_data`
+- **THEN** `Runner.__init__` SHALL complete without raising `PriceDataError`
 
 ---
 

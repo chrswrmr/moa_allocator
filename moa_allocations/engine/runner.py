@@ -250,7 +250,7 @@ def collect_tickers(root: RootNode) -> set[str]:
     netting = root.settings.netting
     if netting is not None:
         cash_ticker = netting.get("cash_ticker")
-        if cash_ticker:
+        if cash_ticker and cash_ticker.upper() != "XCASHX":
             tickers.add(cash_ticker)
     return tickers
 
