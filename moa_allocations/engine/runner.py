@@ -379,7 +379,9 @@ class Runner:
         # --- Simulation date range and price offset ---
         self._sim_dates = idx[(idx >= start_ts) & (idx <= end_ts)]
         self._price_offset = int(idx.searchsorted(start_ts, side="left"))
-        assert price_data.index[self._price_offset] == start_ts
+        # start_date may be a non-trading day; _price_offset points to the first
+        # trading day >= start_date, which must equal _sim_dates[0].
+        assert len(self._sim_dates) > 0 and price_data.index[self._price_offset] == self._sim_dates[0]
 
         T = len(self._sim_dates)
 
@@ -595,7 +597,12 @@ class Runner:
         rows: list[dict] = []
         xcashx_seen = False
         netting_cash_seen = False
-        netting_cash_ticker = (self._netting or {}).get("cash_ticker") or None
+        _raw_cash_ticker = (self._netting or {}).get("cash_ticker") or None
+        # XCASHX is a sentinel — treat as no real cash ticker for column purposes
+        netting_cash_ticker = (
+            None if (_raw_cash_ticker and _raw_cash_ticker.upper() == "XCASHX")
+            else _raw_cash_ticker
+        )
 
         for t_idx, current_date in enumerate(self._sim_dates):
             # Reset temp for all strategy nodes, then restore prior-day weights

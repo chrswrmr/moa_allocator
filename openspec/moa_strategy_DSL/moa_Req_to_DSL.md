@@ -16,10 +16,10 @@ The root node of every backtest. Exists exactly once per strategy definition.
 - **name** — Name of the backtest
 - **starting_cash** — Initial capital
 - **start_date / end_date** — Backtest date range
-- **slippage** — Slippage assumption
-- **fees** — Transaction fee assumption
+- **slippage** — Slippage assumption (decimal fraction, e.g. `0.0005` = 0.05%)
+- **fees** — Transaction fee assumption (decimal fraction, e.g. `0.001` = 0.1%)
 - **rebalance_frequency** — One of: `daily`, `weekly`, `monthly`
-- **rebalance_threshold** — Optional; percentage drift (e.g., 0.05 for 5%) that triggers rebalance on any scheduled rebalancing day it is exceeded
+- **rebalance_threshold** — Optional; decimal fraction drift (e.g. `0.05` = 5%) that triggers rebalance on any scheduled rebalancing day it is exceeded
 - **netting** — Optional; declares long/short ETF pairs to be netted in the output weight vector (see Netting section below)
 
 ### Threshold Rebalancing

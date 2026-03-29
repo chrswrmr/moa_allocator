@@ -82,7 +82,7 @@ When `max_lookback == 0`, the fetch start date SHALL equal the snapped `start_da
 
 ### Requirement: Ticker extraction for price fetch
 
-`run()` SHALL pass the complete set of tickers from `collect_tickers(root)` to the price fetcher as a sorted `list[str]` of uppercase strings.
+`run()` SHALL pass the tickers from `collect_tickers(root)`, excluding the synthetic `XCASHX` placeholder, to the price fetcher as a sorted `list[str]` of uppercase strings.
 
 #### Scenario: Tickers from asset nodes and conditions
 - **WHEN** the compiled tree contains asset nodes for `SPY`, `IWM` and an if_else condition referencing `QQQ`
@@ -104,16 +104,78 @@ The default price fetcher SHALL be a private function `_default_price_fetcher(ti
 
 ---
 
+### Requirement: PidbReader import path
+
+All pidb_ib imports in `moa_allocations/__init__.py` SHALL use `from pidb_ib import PidbReader`, not `from access import PidbReader`.
+
+#### Scenario: Import path
+- **GIVEN** `pidb-ib` is installed as an editable dependency
+- **WHEN** any function in `__init__.py` imports `PidbReader`
+- **THEN** it SHALL use `from pidb_ib import PidbReader`
+
+---
+
+### Requirement: XCASHX filtering
+
+`run()` SHALL filter the synthetic `XCASHX` ticker from the ticker list before passing tickers to any fetcher (default or custom). No real price data exists for `XCASHX`.
+
+#### Scenario: Strategy with XCASHX
+- **GIVEN** a strategy whose `collect_tickers()` returns `["IWM", "SPY", "XCASHX"]`
+- **WHEN** `run()` is called
+- **THEN** only `["IWM", "SPY"]` SHALL be passed to the price fetcher (and to date snapping and lookback resolution when using the default fetcher)
+
+---
+
+### Requirement: Returned symbol validation
+
+`_default_price_fetcher` SHALL verify that all requested tickers are present as columns in the result after renaming. If any are missing, it SHALL raise `PriceDataError` listing the missing tickers.
+
+#### Scenario: Missing ticker in result
+- **WHEN** `get_matrix` is called with `symbols=["SPY", "FAKE"]` and returns only `[date, SPY_close_d]`
+- **THEN** `_default_price_fetcher` SHALL raise `PriceDataError` with a message containing `"FAKE"`
+
+---
+
 ### Requirement: Polars-to-pandas conversion in default fetcher
 
 The default fetcher SHALL convert `PidbReader.get_matrix()` output to the engine's price_data contract:
 - The Polars `date` column (string, `"YYYY-MM-DD"` format) SHALL become a pandas `DatetimeIndex`
-- Since `get_matrix` is called with a single column (`close_d`), the result columns are named directly after symbols (e.g. `SPY`, `IWM`) — these SHALL be preserved as-is
+- `get_matrix` called with `columns=["close_d"]` returns columns named `{SYMBOL}_close_d` (e.g. `SPY_close_d`, `IWM_close_d`). The fetcher SHALL rename each such column to its bare ticker name by stripping the `_close_d` suffix, so the resulting pandas DataFrame has columns `["SPY", "IWM"]`.
 - All values SHALL be `float64`
 
 #### Scenario: Single-column matrix conversion
-- **WHEN** `get_matrix(symbols=["SPY", "IWM"], columns=["close_d"], ...)` returns a Polars DataFrame with columns `[date, SPY, IWM]`
+- **WHEN** `get_matrix(symbols=["SPY", "IWM"], columns=["close_d"], ...)` returns a Polars DataFrame with columns `[date, SPY_close_d, IWM_close_d]`
 - **THEN** the default fetcher SHALL return a pandas DataFrame with `DatetimeIndex` and columns `["SPY", "IWM"]` containing `float64` values
+
+---
+
+### Requirement: Default fetcher raises PriceDataError on pidb_ib import failure
+
+`_default_price_fetcher` SHALL catch `ImportError` when importing `PidbReader` and raise `PriceDataError` with a message indicating that the `pidb_ib` package is not available.
+
+#### Scenario: pidb_ib not installed
+- **WHEN** `pidb_ib` is not installed and `_default_price_fetcher` is called
+- **THEN** it SHALL raise `PriceDataError` with a message containing `"pidb_ib"`
+
+---
+
+### Requirement: Default fetcher raises PriceDataError on database error
+
+`_default_price_fetcher` SHALL catch `sqlite3.OperationalError` raised by `PidbReader` or `get_matrix` and raise `PriceDataError` with a message indicating the database path and the underlying error.
+
+#### Scenario: Database file not found
+- **WHEN** `db_path` points to a non-existent or corrupt SQLite file and `_default_price_fetcher` is called
+- **THEN** it SHALL raise `PriceDataError` with a message that includes the `db_path` value
+
+---
+
+### Requirement: Default fetcher raises PriceDataError on empty result
+
+`_default_price_fetcher` SHALL check that the Polars DataFrame returned by `get_matrix` has at least one row. If the result is empty, it SHALL raise `PriceDataError` with a message indicating that no price data was returned for the requested tickers and date range.
+
+#### Scenario: No data for requested range
+- **WHEN** `get_matrix` returns an empty Polars DataFrame (zero rows)
+- **THEN** `_default_price_fetcher` SHALL raise `PriceDataError` with a message referencing the tickers and date range
 
 ---
 
@@ -133,9 +195,9 @@ The default fetcher SHALL convert `PidbReader.get_matrix()` output to the engine
 
 ---
 
-### Requirement: No pidb_ib imports outside default fetcher
+### Requirement: No pidb_ib imports outside default fetcher code path
 
-`pidb_ib` SHALL only be imported inside the `_default_price_fetcher()` function. No other module in `moa_allocations` SHALL import from `pidb_ib`.
+`pidb_ib` SHALL only be imported inside the default-fetcher code path — specifically `_default_price_fetcher()`, `_snap_to_trading_day()`, and `_resolve_lookback_start()`. No other module in `moa_allocations` SHALL import from `pidb_ib`, and it SHALL never be imported at module level.
 
 #### Scenario: Lazy import isolation
 - **WHEN** `run()` is called with a custom `price_fetcher`
@@ -143,4 +205,4 @@ The default fetcher SHALL convert `PidbReader.get_matrix()` output to the engine
 
 #### Scenario: Default fetcher imports pidb_ib at call time
 - **WHEN** `run()` is called without a `price_fetcher` (using the default)
-- **THEN** `pidb_ib` SHALL be imported inside `_default_price_fetcher()` — not at module level
+- **THEN** `pidb_ib` SHALL be imported inside the default-fetcher helper functions — not at module level

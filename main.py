@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +10,9 @@ from pathlib import Path
 import pandas as pd
 
 from moa_allocations.compiler import compile_strategy
-from moa_allocations.engine import Runner, collect_tickers, compute_max_lookback
+from moa_allocations.engine import PriceDataError, Runner, collect_tickers, compute_max_lookback
+
+_XCASHX = "XCASHX"
 
 _LOG_FMT = "%(asctime)s  %(levelname)s  %(message)s"
 
@@ -33,7 +36,7 @@ def _setup_logging(log_path: Path, debug: bool) -> None:
 
 def _resolve_lookback_start(anchor_ticker: str, start_date: str, max_lookback: int, db_path: str) -> str:
     """Return the ISO date that is exactly max_lookback trading days before start_date."""
-    from access import PidbReader
+    from pidb_ib import PidbReader
 
     reader = PidbReader(db_path)
     pl_df = reader.get_matrix(symbols=[anchor_ticker], columns=["close_d"], end=start_date)
@@ -49,16 +52,41 @@ def _resolve_lookback_start(anchor_ticker: str, start_date: str, max_lookback: i
 
 
 def _default_price_fetcher(tickers: list[str], start_date: str, end_date: str, db_path: str) -> pd.DataFrame:
-    from access import PidbReader  # lazy import — pidb_ib only needed at runtime
+    try:
+        from pidb_ib import PidbReader
+    except ImportError as exc:
+        raise PriceDataError(
+            "pidb_ib package is not available. Install it as an editable dependency."
+        ) from exc
 
-    reader = PidbReader(db_path)
-    pl_df = reader.get_matrix(symbols=tickers, columns=["close_d"], start=start_date, end=end_date)
+    try:
+        reader = PidbReader(db_path)
+        pl_df = reader.get_matrix(symbols=tickers, columns=["close_d"], start=start_date, end=end_date)
+    except sqlite3.OperationalError as exc:
+        raise PriceDataError(
+            f"Database error accessing pidb_ib at {db_path!r}: {exc}"
+        ) from exc
+
+    if len(pl_df) == 0:
+        raise PriceDataError(
+            f"No price data returned for tickers {tickers} between {start_date} and {end_date}."
+        )
 
     df = pl_df.to_pandas()
     df["date"] = pd.to_datetime(df["date"])
     df = df.set_index("date")
     df.index.name = None
-    return df.astype("float64")
+    df = df.rename(columns={col: col.replace("_close_d", "") for col in df.columns})
+    df = df.astype("float64")
+
+    missing = set(tickers) - set(df.columns)
+    if missing:
+        raise PriceDataError(
+            f"Price data missing for tickers: {sorted(missing)}. "
+            f"Available columns: {sorted(df.columns.tolist())}."
+        )
+
+    return df
 
 
 def main() -> None:
@@ -93,19 +121,22 @@ def main() -> None:
     end_date_iso = root.settings.end_date.isoformat()
     start_date_iso = root.settings.start_date.isoformat()
 
+    # Filter synthetic cash placeholder — pidb_ib has no data for it
+    fetch_tickers = [t for t in tickers if t != _XCASHX]
+
     logger.info(
         "Strategy loaded: %s | tickers: %d | %s -> %s",
-        args.strategy, len(tickers), start_date_iso, end_date_iso,
+        args.strategy, len(fetch_tickers), start_date_iso, end_date_iso,
     )
 
     # Resolve precise fetch start: exactly max_lookback trading days before start_date
     if max_lookback > 0:
-        fetch_start_iso = _resolve_lookback_start(tickers[0], start_date_iso, max_lookback, args.db)
+        fetch_start_iso = _resolve_lookback_start(fetch_tickers[0], start_date_iso, max_lookback, args.db)
     else:
         fetch_start_iso = start_date_iso
 
     # Fetch prices
-    price_data = _default_price_fetcher(tickers, fetch_start_iso, end_date_iso, args.db)
+    price_data = _default_price_fetcher(fetch_tickers, fetch_start_iso, end_date_iso, args.db)
 
     logger.info(
         "Simulation starting | start=%s  end=%s  rebalance=%s",

@@ -60,8 +60,8 @@ class _MockReader:
 
 @pytest.fixture()
 def mock_pidb(monkeypatch):
-    import access
-    monkeypatch.setattr(access, "PidbReader", _MockReader)
+    import pidb_ib
+    monkeypatch.setattr(pidb_ib, "PidbReader", _MockReader)
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ def test_run_no_tickers_raises_before_snap(tmp_path, monkeypatch):
     # Simulate a strategy whose compiled tree yields no tickers
     monkeypatch.setattr(moa_allocations, "collect_tickers", lambda _root: set())
 
-    with pytest.raises(ValueError, match="no tickers"):
+    with pytest.raises(ValueError, match="no real tickers"):
         run(str(p))  # no price_fetcher → default fetcher path → hits the guard
 
 

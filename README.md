@@ -16,7 +16,7 @@ strategies/
 ### 2. Run
 
 ```bash
-uv run python main.py --strategy strategies/momentum.moastrat.json
+uv run python main.py --strategy strategies/risk_switch_daily.moastrat.json
 ```
 
 The output CSV is written to `output/` by default:
