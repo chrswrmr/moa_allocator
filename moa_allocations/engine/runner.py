@@ -255,6 +255,50 @@ def collect_tickers(root: RootNode) -> set[str]:
     return tickers
 
 
+def collect_traded_tickers(root: RootNode) -> set[str]:
+    """BFS walk — collect tickers from AssetNode leaves only, excluding XCASHX."""
+    tickers: set[str] = set()
+    queue: collections.deque = collections.deque([root.root])
+    while queue:
+        node = queue.popleft()
+        if isinstance(node, AssetNode):
+            if node.ticker != "XCASHX":
+                tickers.add(node.ticker)
+        elif isinstance(node, IfElseNode):
+            queue.append(node.true_branch)
+            queue.append(node.false_branch)
+        elif isinstance(node, (WeightNode, FilterNode)):
+            for child in node.children:
+                queue.append(child)
+    return tickers
+
+
+def collect_signal_tickers(root: RootNode) -> set[str]:
+    """BFS walk — collect tickers from if_else conditions that are NOT traded (not AssetNode leaves).
+    Excludes XCASHX."""
+    traded = collect_traded_tickers(root)
+    condition_tickers: set[str] = set()
+    queue: collections.deque = collections.deque([root.root])
+    while queue:
+        node = queue.popleft()
+        if isinstance(node, IfElseNode):
+            for cond in node.conditions:
+                lhs = cond.get("lhs", {})
+                if "asset" in lhs:
+                    condition_tickers.add(lhs["asset"])
+                rhs = cond.get("rhs")
+                if isinstance(rhs, dict) and "asset" in rhs:
+                    condition_tickers.add(rhs["asset"])
+            queue.append(node.true_branch)
+            queue.append(node.false_branch)
+        elif isinstance(node, (WeightNode, FilterNode)):
+            for child in node.children:
+                queue.append(child)
+    signal = condition_tickers - traded
+    signal.discard("XCASHX")
+    return signal
+
+
 def compute_max_lookback(root: RootNode) -> int:
     """BFS walk — return maximum lookback (trading days) across all nodes."""
     max_lb = 0

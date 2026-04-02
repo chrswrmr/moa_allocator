@@ -7,6 +7,13 @@ class DSLValidationError(Exception):
 
 
 class PriceDataError(Exception):
-    def __init__(self, message: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        missing_tickers: list[str] | None = None,
+        missing_dates: dict[str, list[str]] | None = None,
+    ) -> None:
         self.message = message
+        self.missing_tickers = missing_tickers
+        self.missing_dates = missing_dates
         super().__init__(message)
