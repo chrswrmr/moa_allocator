@@ -341,16 +341,24 @@ def compile_strategy(path: str) -> RootNode:
 
     # Step 2b: full schema validation
     schema = _load_schema()
+    schema_error = None
     try:
         jsonschema.validate(doc, schema)
     except jsonschema.ValidationError as e:
-        raise DSLValidationError(node_id="root", node_name="settings", message=e.message)
+        schema_error = e
 
     # Step 2c: extract top-level fields
     version_dsl = doc["version-dsl"]
 
-    # Step 3: semantic validation
-    _validate_semantics(doc)
+    # Step 3: semantic validation (runs even if schema failed — gives better per-node errors)
+    try:
+        _validate_semantics(doc)
+    except DSLValidationError:
+        raise  # prefer semantic errors — they have proper node_id
+
+    # If semantic validation passed but schema failed, raise the schema error
+    if schema_error:
+        raise DSLValidationError(node_id="root", node_name="settings", message=schema_error.message)
 
     # Step 4: recursively instantiate the node tree
     root = _build_node(doc["root_node"])
