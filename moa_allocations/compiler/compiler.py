@@ -206,28 +206,30 @@ def _validate_semantics(doc: dict) -> None:
         if node.get("type") == "weight" and node.get("method") == "defined":
             node_id = node["id"]
             node_name = node.get("name", "")
-            children_ids = {c["id"] for c in node.get("children", [])}
+            children = node.get("children", [])
+            children_ids = {c["id"] for c in children}
+            id_to_label = {c["id"]: c.get("name") or c.get("ticker") or c["id"] for c in children}
             custom_weights: dict = node.get("method_params", {}).get("custom_weights", {})
             custom_keys = set(custom_weights.keys())
-            if custom_keys != children_ids:
-                missing = children_ids - custom_keys
-                extra = custom_keys - children_ids
-                parts = []
-                if missing:
-                    parts.append(f"missing keys: {sorted(missing)}")
-                if extra:
-                    parts.append(f"extra keys: {sorted(extra)}")
-                raise DSLValidationError(
-                    node_id=node_id,
-                    node_name=node_name,
-                    message=f"custom_weights keys do not match children ids — {'; '.join(parts)}",
-                )
             total = sum(custom_weights.values())
             if abs(total - 1.0) > 0.001:
                 raise DSLValidationError(
                     node_id=node_id,
                     node_name=node_name,
                     message=f"custom_weights sum to {total:.6f}, expected 1.0 ± 0.001",
+                )
+            if custom_keys != children_ids:
+                missing = children_ids - custom_keys
+                extra = custom_keys - children_ids
+                parts = []
+                if missing:
+                    parts.append(f"missing keys: {sorted(id_to_label[k] for k in missing)}")
+                if extra:
+                    parts.append(f"extra keys: {sorted(extra)}")
+                raise DSLValidationError(
+                    node_id=node_id,
+                    node_name=node_name,
+                    message=f"custom_weights keys do not match children ids — {'; '.join(parts)}",
                 )
 
     # --- Filter select count bound ---
