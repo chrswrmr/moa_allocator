@@ -3,6 +3,7 @@ import json
 import pytest
 
 from moa_allocations.compiler import compile_strategy
+from moa_allocations.compiler.compiler import _validate_semantics
 from moa_allocations.exceptions import DSLValidationError
 
 
@@ -448,3 +449,80 @@ class TestNettingValidation:
             },
         }
         _assert_passes(tmp_path, doc)
+
+
+# ---------------------------------------------------------------------------
+# 4.9 Empty children / conditions / ticker (semantic layer)
+# ---------------------------------------------------------------------------
+
+class TestEmptyFieldsSemantic:
+    """Test _validate_semantics directly to verify node-specific error messages."""
+
+    def _make_sem_doc(self, root_node):
+        return {
+            "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "version-dsl": "1.0.0",
+            "settings": {
+                "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "name": "Test Strategy",
+                "starting_cash": 100000,
+                "start_date": "2020-01-01",
+                "end_date": "2021-01-01",
+                "rebalance_frequency": "daily",
+            },
+            "root_node": root_node,
+        }
+
+    def test_weight_empty_children(self):
+        node_id = "11111111-1111-1111-1111-111111111111"
+        doc = self._make_sem_doc({
+            "id": node_id,
+            "type": "weight",
+            "method": "equal",
+            "children": [],
+        })
+        with pytest.raises(DSLValidationError) as exc_info:
+            _validate_semantics(doc)
+        assert exc_info.value.node_id == node_id
+        assert "weight node must have at least one child" in exc_info.value.message
+
+    def test_filter_empty_children(self):
+        node_id = "11111111-1111-1111-1111-111111111111"
+        doc = self._make_sem_doc({
+            "id": node_id,
+            "type": "filter",
+            "sort_by": {"function": "current_price"},
+            "select": {"mode": "top", "count": 1},
+            "children": [],
+        })
+        with pytest.raises(DSLValidationError) as exc_info:
+            _validate_semantics(doc)
+        assert exc_info.value.node_id == node_id
+        assert "filter node must have at least one child" in exc_info.value.message
+
+    def test_if_else_empty_conditions(self):
+        node_id = "11111111-1111-1111-1111-111111111111"
+        doc = self._make_sem_doc({
+            "id": node_id,
+            "type": "if_else",
+            "logic_mode": "all",
+            "conditions": [],
+            "true_branch": {"id": "22222222-2222-2222-2222-222222222222", "type": "asset", "ticker": "SPY"},
+            "false_branch": {"id": "33333333-3333-3333-3333-333333333333", "type": "asset", "ticker": "AGG"},
+        })
+        with pytest.raises(DSLValidationError) as exc_info:
+            _validate_semantics(doc)
+        assert exc_info.value.node_id == node_id
+        assert "if_else node must have at least one condition" in exc_info.value.message
+
+    def test_asset_empty_ticker(self):
+        node_id = "11111111-1111-1111-1111-111111111111"
+        doc = self._make_sem_doc({
+            "id": node_id,
+            "type": "asset",
+            "ticker": "",
+        })
+        with pytest.raises(DSLValidationError) as exc_info:
+            _validate_semantics(doc)
+        assert exc_info.value.node_id == node_id
+        assert "asset node must have a non-empty ticker" in exc_info.value.message

@@ -171,6 +171,36 @@ def _validate_semantics(doc: dict) -> None:
             )
         seen[node_id] = node_name
 
+    # --- Empty children / conditions / ticker ---
+    for node in all_nodes:
+        node_id = node["id"]
+        node_name = node.get("name", "")
+        ntype = node.get("type")
+        if ntype == "weight" and len(node.get("children", [])) == 0:
+            raise DSLValidationError(
+                node_id=node_id,
+                node_name=node_name,
+                message="weight node must have at least one child",
+            )
+        if ntype == "filter" and len(node.get("children", [])) == 0:
+            raise DSLValidationError(
+                node_id=node_id,
+                node_name=node_name,
+                message="filter node must have at least one child",
+            )
+        if ntype == "if_else" and len(node.get("conditions", [])) == 0:
+            raise DSLValidationError(
+                node_id=node_id,
+                node_name=node_name,
+                message="if_else node must have at least one condition",
+            )
+        if ntype == "asset" and not node.get("ticker"):
+            raise DSLValidationError(
+                node_id=node_id,
+                node_name=node_name,
+                message="asset node must have a non-empty ticker",
+            )
+
     # --- Defined weight completeness and sum ---
     for node in all_nodes:
         if node.get("type") == "weight" and node.get("method") == "defined":

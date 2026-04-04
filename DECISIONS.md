@@ -269,6 +269,32 @@ Freed weight (the reduction in gross allocation) is routed to `cash_ticker` or `
 - ✅ Sum-to-one invariant preserved (freed weight is always non-negative and re-allocated to cash)
 - ⚠️ NAV divergence (v1 known limitation): the Upward Pass uses raw un-netted weights; backtested NAV reflects holding both legs, not the netted position. Acceptable for 1x inverse pairs; future v2 can add NAV-aware netting.
 
+## ADR-008 — Add minItems/minLength constraints to node type definitions
+
+**Date:** 2026-04-04
+**Status:** Accepted
+
+### Context
+
+ADR-007 and prior work added `required` arrays to all node type definitions in `moa_DSL_schema.json`, ensuring missing fields are caught at schema validation time. However, `required` only checks field presence — an empty array (`"children": []`) or empty string (`"ticker": ""`) passes schema validation but crashes the engine at runtime with unhelpful errors (division by zero, undefined branch selection, failed price fetch).
+
+### Decision
+
+Add property-level constraints to `moa_DSL_schema.json`:
+
+- `ifElseNode.conditions`: `minItems: 1`
+- `weightNode.children`: `minItems: 1`
+- `filterNode.children`: `minItems: 1`
+- `assetNode.ticker`: `minLength: 1`
+
+Additionally, add matching semantic checks in `_validate_semantics()` for each case, providing `node_id`-enriched `DSLValidationError` messages that the frontend can use to highlight the specific block.
+
+### Consequences
+
+- ✅ Empty-but-present values are caught at validation time instead of crashing at runtime
+- ✅ Schema layer catches the structural error; semantic layer provides precise node attribution
+- ⚠️ Existing strategies with empty arrays/strings now fail at validation — these already crashed at runtime, so this is strictly better
+
 <!-- Add new ADRs above this line, incrementing the number -->
 
 

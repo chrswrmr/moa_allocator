@@ -5,7 +5,9 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(grep -r \"def.*cli\\\\|def.*main\\\\|if __name__\" /c/py/moa_allocator/*.py)",
       "Bash(where openspec:*)",
-      "Read(//c/Users/PC User/.claude/projects/c--py-moa-allocator/0da1cc25-9c24-4d56-997a-48e40903fc75/tool-results/**)"
+      "Read(//c/Users/PC User/.claude/projects/c--py-moa-allocator/0da1cc25-9c24-4d56-997a-48e40903fc75/tool-results/**)",
+      "Bash(mv openspec/changes/validate-node-required-fields-pt2/starting_point.md /tmp/sp.md)",
+      "Bash(rm -rf openspec/changes/validate-node-required-fields-pt2)"
     ],
     "additionalDirectories": [
       "c:\\py\\moa_allocator\\openspec\\changes\\validate-node-required-fields"

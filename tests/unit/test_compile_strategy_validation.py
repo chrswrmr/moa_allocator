@@ -278,3 +278,59 @@ def test_filter_select_missing_field(tmp_path, missing_field):
     path = _write_json(tmp_path, _make_doc(node))
     with pytest.raises(DSLValidationError):
         compile_strategy(path)
+
+
+# ---------------------------------------------------------------------------
+# Empty arrays / empty string rejected at schema level (minItems / minLength)
+# ---------------------------------------------------------------------------
+
+def test_if_else_empty_conditions_rejected(tmp_path):
+    node = {**_VALID_IF_ELSE, "conditions": []}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+def test_weight_empty_children_rejected(tmp_path):
+    node = {**_VALID_WEIGHT, "children": []}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+def test_filter_empty_children_rejected(tmp_path):
+    node = {**_VALID_FILTER, "children": []}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+def test_asset_empty_ticker_rejected(tmp_path):
+    node = {"id": "dddddddd-0001-0000-0000-000000000001", "type": "asset", "ticker": ""}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+# ---------------------------------------------------------------------------
+# Non-empty arrays / strings still pass schema validation
+# ---------------------------------------------------------------------------
+
+def test_if_else_with_conditions_passes(tmp_path):
+    path = _write_json(tmp_path, _make_doc(_VALID_IF_ELSE))
+    compile_strategy(path)
+
+
+def test_weight_with_children_passes(tmp_path):
+    path = _write_json(tmp_path, _make_doc(_VALID_WEIGHT))
+    compile_strategy(path)
+
+
+def test_filter_with_children_passes(tmp_path):
+    path = _write_json(tmp_path, _make_doc(_VALID_FILTER))
+    compile_strategy(path)
+
+
+def test_asset_with_ticker_passes(tmp_path):
+    path = _write_json(tmp_path, _make_doc(_ASSET_SPY))
+    compile_strategy(path)
