@@ -146,9 +146,9 @@ def _collect_nodes(node: dict) -> list[dict]:
     nodes = [node]
     for child in node.get("children", []):
         nodes.extend(_collect_nodes(child))
-    if "true_branch" in node:
+    if node.get("true_branch"):
         nodes.extend(_collect_nodes(node["true_branch"]))
-    if "false_branch" in node:
+    if node.get("false_branch"):
         nodes.extend(_collect_nodes(node["false_branch"]))
     return nodes
 
@@ -193,6 +193,18 @@ def _validate_semantics(doc: dict) -> None:
                 node_id=node_id,
                 node_name=node_name,
                 message="if_else node must have at least one condition",
+            )
+        if ntype == "if_else" and not node.get("true_branch"):
+            raise DSLValidationError(
+                node_id=node_id,
+                node_name=node_name,
+                message="if_else node must have a 'then' branch",
+            )
+        if ntype == "if_else" and not node.get("false_branch"):
+            raise DSLValidationError(
+                node_id=node_id,
+                node_name=node_name,
+                message="if_else node must have an 'else' branch",
             )
         if ntype == "asset" and not node.get("ticker"):
             raise DSLValidationError(
@@ -239,6 +251,12 @@ def _validate_semantics(doc: dict) -> None:
             node_name = node.get("name", "")
             count = node["select"]["count"]
             n_children = len(node.get("children", []))
+            if count < 1:
+                raise DSLValidationError(
+                    node_id=node_id,
+                    node_name=node_name,
+                    message=f"select.count must be at least 1, got {count}",
+                )
             if count > n_children:
                 raise DSLValidationError(
                     node_id=node_id,
