@@ -341,18 +341,23 @@ Can be a top-level node (directly under root) or anywhere in the middle.
 
 ```json
 {
-  "id": { "type": "string", "format": "uuid" },
-  "name": { "type": "string" },
-  "type": { "const": "filter" },
-  "sort_by": { "$ref": "#/definitions/sortMetric" },
-  "select": {
-    "type": "object",
-    "properties": {
-      "mode": { "enum": ["top", "bottom"] },
-      "count": { "type": "integer" }
-    }
-  },
-  "children": { "type": "array", "items": { "$ref": "#/definitions/node" } }
+  "type": "object",
+  "required": ["id", "type", "sort_by", "select", "children"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "name": { "type": "string" },
+    "type": { "const": "filter" },
+    "sort_by": { "$ref": "#/definitions/sortMetric" },
+    "select": {
+      "type": "object",
+      "required": ["mode", "count"],
+      "properties": {
+        "mode": { "enum": ["top", "bottom"] },
+        "count": { "type": "integer" }
+      }
+    },
+    "children": { "type": "array", "items": { "$ref": "#/definitions/node" } }
+  }
 }
 ```
 
@@ -401,10 +406,14 @@ Defines a single tradeable asset that may receive an allocation.
 
 ```json
 {
-  "id": { "type": "string", "format": "uuid" },
-  "name": { "type": "string" },
-  "type": { "const": "asset" },
-  "ticker": { "type": "string" }
+  "type": "object",
+  "required": ["id", "type", "ticker"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "name": { "type": "string" },
+    "type": { "const": "asset" },
+    "ticker": { "type": "string" }
+  }
 }
 ```
 

@@ -222,6 +222,9 @@ def _log_downward_ifelse(node: IfElseNode, t_idx: int, runner: Runner) -> None:
 
 class PriceDataError(Exception):
     def __init__(self, message: str) -> None:
+        self.message = message
+        self.missing_tickers = None
+        self.missing_dates = None
         super().__init__(message)
 
 

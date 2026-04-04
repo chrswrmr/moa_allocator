@@ -173,3 +173,108 @@ def test_netting_positive_short_leverage_rejected(tmp_path):
     path = _write_json(tmp_path, _netting_doc(long_leverage=1, short_leverage=1))
     with pytest.raises(DSLValidationError):
         compile_strategy(path)
+
+
+# ---------------------------------------------------------------------------
+# Node-level required field validation (tasks 2.1–2.5)
+# ---------------------------------------------------------------------------
+
+def _make_doc(root_node):
+    """Wrap a root_node dict in a valid top-level document."""
+    return {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "version-dsl": "1.0.0",
+        "settings": {
+            "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            "name": "Test Strategy",
+            "starting_cash": 100000,
+            "start_date": "2020-01-01",
+            "end_date": "2021-01-01",
+            "rebalance_frequency": "daily",
+        },
+        "root_node": root_node,
+    }
+
+
+_ASSET_SPY = {"id": "dddddddd-0001-0000-0000-000000000001", "type": "asset", "ticker": "SPY"}
+_ASSET_TLT = {"id": "dddddddd-0002-0000-0000-000000000002", "type": "asset", "ticker": "TLT"}
+
+_VALID_IF_ELSE = {
+    "id": "cccccccc-0001-0000-0000-000000000001",
+    "type": "if_else",
+    "logic_mode": "all",
+    "conditions": [
+        {
+            "lhs": {"asset": "SPY", "function": "current_price"},
+            "comparator": "greater_than",
+            "rhs": 100,
+        }
+    ],
+    "true_branch": _ASSET_SPY,
+    "false_branch": _ASSET_TLT,
+}
+
+_VALID_WEIGHT = {
+    "id": "cccccccc-0002-0000-0000-000000000001",
+    "type": "weight",
+    "method": "equal",
+    "children": [_ASSET_SPY, _ASSET_TLT],
+}
+
+_VALID_FILTER = {
+    "id": "cccccccc-0003-0000-0000-000000000001",
+    "type": "filter",
+    "sort_by": {"function": "current_price"},
+    "select": {"mode": "top", "count": 1},
+    "children": [_ASSET_SPY, _ASSET_TLT],
+}
+
+
+# --- 2.1 if_else missing required fields ---
+
+@pytest.mark.parametrize("missing_field", ["logic_mode", "conditions", "true_branch", "false_branch"])
+def test_if_else_missing_required_field(tmp_path, missing_field):
+    node = {k: v for k, v in _VALID_IF_ELSE.items() if k != missing_field}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+# --- 2.2 weight missing required fields ---
+
+@pytest.mark.parametrize("missing_field", ["method", "children"])
+def test_weight_missing_required_field(tmp_path, missing_field):
+    node = {k: v for k, v in _VALID_WEIGHT.items() if k != missing_field}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+# --- 2.3 filter missing required fields ---
+
+@pytest.mark.parametrize("missing_field", ["sort_by", "select", "children"])
+def test_filter_missing_required_field(tmp_path, missing_field):
+    node = {k: v for k, v in _VALID_FILTER.items() if k != missing_field}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+# --- 2.4 asset missing ticker ---
+
+def test_asset_missing_ticker(tmp_path):
+    node = {"id": "dddddddd-0001-0000-0000-000000000001", "type": "asset"}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)
+
+
+# --- 2.5 filter select missing mode or count ---
+
+@pytest.mark.parametrize("missing_field", ["mode", "count"])
+def test_filter_select_missing_field(tmp_path, missing_field):
+    select = {k: v for k, v in {"mode": "top", "count": 1}.items() if k != missing_field}
+    node = {**_VALID_FILTER, "select": select}
+    path = _write_json(tmp_path, _make_doc(node))
+    with pytest.raises(DSLValidationError):
+        compile_strategy(path)

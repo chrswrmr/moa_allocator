@@ -133,6 +133,12 @@
       ]
     },
     "ifElseNode": {
+      "required": [
+        "logic_mode",
+        "conditions",
+        "true_branch",
+        "false_branch"
+      ],
       "properties": {
         "type": {
           "const": "if_else"
@@ -243,6 +249,10 @@
       }
     },
     "weightNode": {
+      "required": [
+        "method",
+        "children"
+      ],
       "properties": {
         "type": {
           "const": "weight"
@@ -277,6 +287,11 @@
       }
     },
     "filterNode": {
+      "required": [
+        "sort_by",
+        "select",
+        "children"
+      ],
       "properties": {
         "type": {
           "const": "filter"
@@ -286,6 +301,10 @@
         },
         "select": {
           "type": "object",
+          "required": [
+            "mode",
+            "count"
+          ],
           "properties": {
             "mode": {
               "enum": [
@@ -307,6 +326,9 @@
       }
     },
     "assetNode": {
+      "required": [
+        "ticker"
+      ],
       "properties": {
         "type": {
           "const": "asset"
