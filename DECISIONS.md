@@ -295,6 +295,25 @@ Additionally, add matching semantic checks in `_validate_semantics()` for each c
 - ✅ Schema layer catches the structural error; semantic layer provides precise node attribution
 - ⚠️ Existing strategies with empty arrays/strings now fail at validation — these already crashed at runtime, so this is strictly better
 
+## ADR-009 — Add `on_change` to `rebalance_frequency` enum
+
+**Date:** 2026-11-09
+**Status:** Accepted
+
+### Context
+
+`moa_rebalancer` accepts `rebalance_frequency: "on_change"`: it trades only on days the allocation row differs from the last traded target, never on price drift. Strategies using this value were rejected by `moa_DSL_schema.json`, so they could not be compiled by the allocator at all.
+
+### Decision
+
+Extend `settings.rebalance_frequency.enum` with `"on_change"` in both schema copies. Inside the allocator, `on_change` means "evaluate the tree every trading day": `_is_rebalance_day` returns `True` via an explicit branch, so the Downward Pass runs daily and one weight row is emitted per trading day. The change/drift gate stays in `moa_rebalancer`, consistent with ADR-005; the allocator never compares today's weights to yesterday's. `version-dsl` stays `1.0.0` (additive enum change).
+
+### Consequences
+
+- ✅ `on_change` strategies compile and run; output is a full daily series the rebalancer can diff
+- ✅ Allocator remains a pure daily weight emitter — no trade-decision logic leaks in
+- ⚠️ Allocator output for `on_change` is identical to `daily`; the semantic difference lives entirely downstream
+
 <!-- Add new ADRs above this line, incrementing the number -->
 
 

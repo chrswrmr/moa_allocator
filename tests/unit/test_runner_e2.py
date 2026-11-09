@@ -111,6 +111,14 @@ class TestIsRebalanceDay:
         curr = date(2025, 1, 2)
         assert _is_rebalance_day(curr, prev, "weekly") is False
 
+    def test_on_change_always_true(self):
+        # Same ISO week and same month: weekly/monthly would say False.
+        prev = date(2024, 1, 8)
+        curr = date(2024, 1, 9)
+        assert _is_rebalance_day(curr, prev, "weekly") is False
+        assert _is_rebalance_day(curr, prev, "monthly") is False
+        assert _is_rebalance_day(curr, prev, "on_change") is True
+
 
 # ---------------------------------------------------------------------------
 # 5.2  _sim_dates and _price_offset

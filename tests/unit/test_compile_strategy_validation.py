@@ -46,6 +46,20 @@ def test_valid_doc_compiles_successfully(tmp_path):
     assert isinstance(result, RootNode)
 
 
+def test_on_change_rebalance_frequency_compiles(tmp_path):
+    doc = json.loads(json.dumps(VALID_DOC))
+    doc["settings"]["rebalance_frequency"] = "on_change"
+    result = compile_strategy(_write_json(tmp_path, doc))
+    assert result.settings.rebalance_frequency == "on_change"
+
+
+def test_unknown_rebalance_frequency_rejected(tmp_path):
+    doc = json.loads(json.dumps(VALID_DOC))
+    doc["settings"]["rebalance_frequency"] = "hourly"
+    with pytest.raises(DSLValidationError):
+        compile_strategy(_write_json(tmp_path, doc))
+
+
 # ---------------------------------------------------------------------------
 # 6.2 Non-existent file raises DSLValidationError
 # ---------------------------------------------------------------------------

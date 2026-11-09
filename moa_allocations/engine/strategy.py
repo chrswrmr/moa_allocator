@@ -15,7 +15,7 @@ class Settings:
     end_date: date
     slippage: float
     fees: float
-    rebalance_frequency: str  # "daily" | "weekly" | "monthly"
+    rebalance_frequency: str  # "daily" | "weekly" | "monthly" | "on_change"
     rebalance_threshold: float | None = None
     netting: dict | None = None
 

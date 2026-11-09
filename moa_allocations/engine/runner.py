@@ -377,6 +377,10 @@ def _is_rebalance_day(current_date, prev_date, frequency: str) -> bool:
         return current_date.isocalendar()[:2] != prev_date.isocalendar()[:2]
     elif frequency == "monthly":
         return current_date.month != prev_date.month
+    elif frequency == "on_change":
+        # Evaluate the tree every day; moa_rebalancer decides whether the
+        # resulting weights differ from the last traded target (ADR-009).
+        return True
     return True
 
 

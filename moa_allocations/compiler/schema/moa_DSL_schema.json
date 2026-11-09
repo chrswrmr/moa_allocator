@@ -60,7 +60,8 @@
           "enum": [
             "daily",
             "weekly",
-            "monthly"
+            "monthly",
+            "on_change"
           ]
         },
         "rebalance_threshold": {

@@ -18,7 +18,7 @@ The root node of every backtest. Exists exactly once per strategy definition.
 - **start_date / end_date** — Backtest date range
 - **slippage** — Slippage assumption (decimal fraction, e.g. `0.0005` = 0.05%)
 - **fees** — Transaction fee assumption (decimal fraction, e.g. `0.001` = 0.1%)
-- **rebalance_frequency** — One of: `daily`, `weekly`, `monthly`
+- **rebalance_frequency** — One of: `daily`, `weekly`, `monthly`, `on_change`. `on_change`: the engine evaluates the tree every trading day; moa_rebalancer trades only when the resulting weights change.
 - **rebalance_threshold** — Optional; decimal fraction drift (e.g. `0.05` = 5%) that triggers rebalance on any scheduled rebalancing day it is exceeded
 - **netting** — Optional; declares long/short ETF pairs to be netted in the output weight vector (see Netting section below)
 
@@ -48,7 +48,7 @@ This block is the **root node** and exists only once per backtest.
     "end_date": { "type": "string", "format": "date" },
     "slippage": { "type": "number", "default": 0.0005 },
     "fees": { "type": "number", "default": 0.0 },
-    "rebalance_frequency": { "enum": ["daily", "weekly", "monthly"] },
+    "rebalance_frequency": { "enum": ["daily", "weekly", "monthly", "on_change"] },
     "rebalance_threshold": { "type": "number", "description": "Percentage (e.g., 0.05 for 5%)" },
     "netting": {
       "type": "object",

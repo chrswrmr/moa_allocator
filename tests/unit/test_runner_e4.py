@@ -234,6 +234,53 @@ class TestCarryForward:
 
 
 # ---------------------------------------------------------------------------
+# 6.6b  on_change: one row per trading day, Downward Pass every day
+# ---------------------------------------------------------------------------
+
+class TestOnChangeFrequency:
+    def _run(self, frequency: str):
+        spy = _asset("spy", "SPY")
+        bnd = _asset("bnd", "BND")
+        node = _weight_defined("root", [spy, bnd], {"spy": 0.6, "bnd": 0.4})
+        # Mon Jan 8 – Fri Jan 12: a single ISO week, single month.
+        index = pd.bdate_range("2024-01-08", periods=5)
+        price_data = pd.DataFrame(
+            {"SPY": [100.0] * 5, "BND": [50.0] * 5}, index=index
+        )
+        root = _root(node, start="2024-01-08", end="2024-01-12", frequency=frequency)
+        runner = Runner(root, price_data)
+        downward_days: list[int] = []
+        original = runner._downward_pass
+
+        def spy_downward(t_idx, date_str):
+            downward_days.append(t_idx)
+            return original(t_idx, date_str)
+
+        runner._downward_pass = spy_downward
+        return runner.run(), downward_days
+
+    def test_one_row_per_trading_day(self):
+        df, _ = self._run("on_change")
+        assert len(df) == 5
+        for _, row in df.iterrows():
+            assert abs(row["SPY"] - 0.6) < 1e-12
+            assert abs(row["BND"] - 0.4) < 1e-12
+
+    def test_downward_pass_runs_every_day(self):
+        _, days = self._run("on_change")
+        assert days == [0, 1, 2, 3, 4]
+
+    def test_weekly_only_runs_downward_on_day_zero(self):
+        _, days = self._run("weekly")
+        assert days == [0]
+
+    def test_output_identical_to_daily(self):
+        df_on_change, _ = self._run("on_change")
+        df_daily, _ = self._run("daily")
+        pd.testing.assert_frame_equal(df_on_change, df_daily)
+
+
+# ---------------------------------------------------------------------------
 # 6.7  DataFrame column order
 # ---------------------------------------------------------------------------
 
