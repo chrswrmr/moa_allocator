@@ -43,7 +43,7 @@ Before running schema validation, `compile_strategy()` SHALL check that `version
 ---
 
 ### Requirement: Schema validation
-After the version pre-check passes, `compile_strategy()` SHALL validate the full document against `moa_DSL_schema.json` (the canonical copy at `moa_allocations/compiler/schema/moa_DSL_schema.json`). On any violation it SHALL raise `DSLValidationError(node_id="root", node_name="settings", message=<schema error message>)`. Only the first violation is reported (fail-fast).
+After the version pre-check passes, `compile_strategy()` SHALL validate the full document against `moa_DSL_schema.json` (the canonical copy at `moa_allocations/compiler/schema/moa_DSL_schema.json`). When the document violates the schema, `compile_strategy()` SHALL still run `_validate_semantics(doc)` so that a semantic violation carrying a precise `node_id` is reported in preference to the schema error. If `_validate_semantics` raises `DSLValidationError`, that error SHALL propagate unchanged. If `_validate_semantics` completes, or fails with any exception other than `DSLValidationError` (because the document is structurally invalid and the semantic checks assume a schema-valid document), `compile_strategy()` SHALL raise `DSLValidationError(node_id="root", node_name="settings", message=<schema error message>)`. A bare `KeyError`, `TypeError` or similar SHALL never escape `compile_strategy()` for a document that failed schema validation. Only the first violation is reported (fail-fast). When the document passes schema validation, any exception from `_validate_semantics` propagates unchanged.
 
 The `time_offset` definition in `moa_DSL_schema.json` SHALL use the pattern `^[0-9]+d$` (daily bars only). The `w` and `m` suffixes are no longer valid.
 
@@ -166,6 +166,18 @@ The `assetNode` `ticker` property SHALL declare `minLength: 1`. An asset node wi
 - **WHEN** an `asset` node has `"ticker": "SPY"`
 - **THEN** schema validation passes for this node
 
+
+#### Scenario: Document missing settings reports the schema error, not a KeyError
+- **WHEN** the document has no `settings` key, so schema validation fails and `_validate_semantics` would raise `KeyError('settings')`
+- **THEN** `compile_strategy()` raises `DSLValidationError` with `node_id="root"`, `node_name="settings"` and the schema error message; no `KeyError` escapes
+
+#### Scenario: Filter node missing select reports the schema error, not a KeyError
+- **WHEN** a `filter` node has no `select` object (or `select` lacks `count`), so schema validation fails and `_validate_semantics` would raise `KeyError`
+- **THEN** `compile_strategy()` raises `DSLValidationError` carrying the schema error message; no `KeyError` escapes
+
+#### Scenario: Semantic error preferred when both layers fail
+- **WHEN** the document both violates the schema (e.g. `starting_cash` is a string) and violates a semantic rule (e.g. two nodes share an `id`)
+- **THEN** `compile_strategy()` raises the semantic `DSLValidationError` whose `node_id` is the offending node, not the root-level schema error
 ---
 
 ### Requirement: Top-level field extraction

@@ -121,6 +121,29 @@ def test_missing_settings_raises_dsl_error(tmp_path):
         compile_strategy(path)
     assert exc_info.value.node_id == "root"
     assert exc_info.value.node_name == "settings"
+    # Schema error is reported; the KeyError from _validate_semantics must not leak.
+    assert "settings" in exc_info.value.message
+
+
+def test_semantic_error_preferred_when_schema_also_fails(tmp_path):
+    dup = "dddddddd-0001-0000-0000-000000000001"
+    doc = {
+        **VALID_DOC,
+        "settings": {**VALID_DOC["settings"], "starting_cash": "not-a-number"},  # schema violation
+        "root_node": {
+            "id": "cccccccc-0002-0000-0000-000000000001",
+            "type": "weight",
+            "method": "equal",
+            "children": [
+                {"id": dup, "type": "asset", "ticker": "SPY"},
+                {"id": dup, "type": "asset", "ticker": "TLT"},  # semantic violation: duplicate id
+            ],
+        },
+    }
+    with pytest.raises(DSLValidationError) as exc_info:
+        compile_strategy(_write_json(tmp_path, doc))
+    assert exc_info.value.node_id == dup
+    assert "duplicate node id" in exc_info.value.message
 
 
 # ---------------------------------------------------------------------------

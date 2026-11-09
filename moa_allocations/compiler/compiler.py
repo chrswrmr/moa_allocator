@@ -373,6 +373,12 @@ def compile_strategy(path: str) -> RootNode:
         _validate_semantics(doc)
     except DSLValidationError:
         raise  # prefer semantic errors — they have proper node_id
+    except Exception:
+        # _validate_semantics assumes a schema-valid document. If the schema
+        # check already failed, a KeyError/TypeError here just means the
+        # document is too broken to analyse — report the schema error instead.
+        if schema_error is None:
+            raise
 
     # If semantic validation passed but schema failed, raise the schema error
     if schema_error:
