@@ -287,6 +287,16 @@ def _validate_semantics(doc: dict) -> None:
                     node_name=node_name,
                     message=f"metric function '{sort_by['function']}' requires 'lookback' (sort_by)",
                 )
+        if (
+            node.get("type") == "weight"
+            and node.get("method") == "inverse_volatility"
+            and "lookback" not in (node.get("method_params") or {})
+        ):
+            raise DSLValidationError(
+                node_id=node_id,
+                node_name=node_name,
+                message="weight method 'inverse_volatility' requires 'method_params.lookback'",
+            )
 
     # --- Netting pair validation ---
     netting = settings.get("netting")

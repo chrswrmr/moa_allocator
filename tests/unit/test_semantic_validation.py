@@ -526,3 +526,76 @@ class TestEmptyFieldsSemantic:
             _validate_semantics(doc)
         assert exc_info.value.node_id == node_id
         assert "asset node must have a non-empty ticker" in exc_info.value.message
+
+
+# ---------------------------------------------------------------------------
+# Inverse-volatility weight node requires method_params.lookback
+# ---------------------------------------------------------------------------
+
+_INVVOL_ID = "eeeeeeee-0001-0000-0000-000000000001"
+
+
+def _invvol_doc(method="inverse_volatility", method_params=None):
+    node = {
+        "id": _INVVOL_ID,
+        "type": "weight",
+        "method": method,
+        "children": [
+            {"id": "eeeeeeee-0002-0000-0000-000000000001", "type": "asset", "ticker": "SPY"},
+            {"id": "eeeeeeee-0003-0000-0000-000000000001", "type": "asset", "ticker": "TLT"},
+        ],
+    }
+    if method_params is not None:
+        node["method_params"] = method_params
+    return _doc(root_node=node)
+
+
+class TestInverseVolatilityLookback:
+    def test_with_lookback_passes(self, tmp_path):
+        _assert_passes(tmp_path, _invvol_doc(method_params={"lookback": "20d"}))
+
+    def test_without_method_params_fails(self, tmp_path):
+        _assert_fails(tmp_path, _invvol_doc(), node_id=_INVVOL_ID, fragment="method_params.lookback")
+
+    def test_empty_method_params_fails(self, tmp_path):
+        _assert_fails(tmp_path, _invvol_doc(method_params={}), node_id=_INVVOL_ID, fragment="method_params.lookback")
+
+    def test_equal_without_method_params_passes(self, tmp_path):
+        _assert_passes(tmp_path, _invvol_doc(method="equal"))
+
+    def test_bug_report_tree_rejected_at_validation(self, tmp_path):
+        # Shape from BUG_REPORT_lookback_keyerror.md: inverse_volatility root with no
+        # method_params, an if_else child with sma_price conditions, and a filter branch.
+        # Previously validated clean and crashed with KeyError('lookback') in Runner.__init__.
+        root = {
+            "id": _INVVOL_ID,
+            "type": "weight",
+            "method": "inverse_volatility",
+            "children": [
+                {"id": "eeeeeeee-0010-0000-0000-000000000001", "type": "asset", "ticker": "DBC"},
+                {
+                    "id": "eeeeeeee-0011-0000-0000-000000000001",
+                    "type": "if_else",
+                    "logic_mode": "all",
+                    "conditions": [{
+                        "lhs": {"asset": "SPY", "function": "sma_price", "lookback": "20d"},
+                        "comparator": "greater_than",
+                        "rhs": {"asset": "SPY", "function": "sma_price", "lookback": "200d"},
+                        "duration": "1d",
+                    }],
+                    "true_branch": {"id": "eeeeeeee-0012-0000-0000-000000000001", "type": "asset", "ticker": "TQQQ"},
+                    "false_branch": {
+                        "id": "eeeeeeee-0013-0000-0000-000000000001",
+                        "type": "filter",
+                        "sort_by": {"function": "cumulative_return", "lookback": "20d"},
+                        "select": {"mode": "top", "count": 2},
+                        "children": [
+                            {"id": "eeeeeeee-0014-0000-0000-000000000001", "type": "asset", "ticker": "GLD"},
+                            {"id": "eeeeeeee-0015-0000-0000-000000000001", "type": "asset", "ticker": "AGG"},
+                        ],
+                    },
+                },
+                {"id": "eeeeeeee-0016-0000-0000-000000000001", "type": "asset", "ticker": "XLK"},
+            ],
+        }
+        _assert_fails(tmp_path, _doc(root_node=root), node_id=_INVVOL_ID, fragment="method_params.lookback")
